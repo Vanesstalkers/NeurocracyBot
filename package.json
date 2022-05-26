@@ -1,0 +1,8 @@
+{
+    "type": "module",
+	"main": "index.js",
+    "dependencies": {
+        "node-telegram-bot-api": "^0.56.0",
+        "pg": "^8.7.3"
+    }
+}
