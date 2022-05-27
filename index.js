@@ -22,23 +22,34 @@ export class errorCatcher {
 }
 
 try {
-  process.CONFIG = config;
-  process.DB = new pg.Pool(config.postgres);
-  process.BOT = new telegramBot();
-  await process.BOT.setCommands([
-    { command: "/start", description: "Стартовое сообщение" },
-  ]);
-
   process.LST = {};
   process.CONSTANTS = {};
   process.BOT_MENU = {};
   process.BOT_COMMANDS = {
-    "/start": async function (argList) {
-      await this.startMsg(argList);
+    "/start": {
+      description: "Стартовое сообщение",
+      action: async function (argList) {
+        await this.startMsg(argList);
+      },
+    },
+    "/address": {
+      description: "Адрес мероприятия",
+      action: async function (argList) {
+        await this.getAddress(argList);
+      },
     },
   };
 
+  process.CONFIG = config;
+  process.DB = new pg.Pool(config.postgres);
+  process.BOT = new telegramBot();
   process.LOBBY = new Lobby();
+
+  await process.BOT.setCommands(
+    Object.entries(process.BOT_COMMANDS).map(([command, info]) => {
+      return { command, description: info.description };
+    })
+  );
 
   process.BOT.setHandler({
     handler: "message",
@@ -54,7 +65,11 @@ try {
         // + после pinChatMessage прилетает сообщение от бота, которое ломает getUser
         if (msg.from.is_bot) return;
 
-        const user = await process.LOBBY.getUser({ userId, chatId, telegramData: msg.from });
+        const user = await process.LOBBY.getUser({
+          userId,
+          chatId,
+          telegramData: msg.from,
+        });
         if (!user) return;
 
         const text = msg.text;
@@ -80,7 +95,10 @@ try {
               entity.offset + entity.length
             );
             if (process.BOT_COMMANDS[command]) {
-              await process.BOT_COMMANDS[command].call(user, { msgId, text });
+              await process.BOT_COMMANDS[command].action.call(user, {
+                msgId,
+                text,
+              });
             }
           }
         }
@@ -103,7 +121,11 @@ try {
         // пока что функционал обработки событий от ботов не нужен
         if (msg.from.is_bot) return;
 
-        const user = await process.LOBBY.getUser({ userId, chatId, telegramData: msg.from });
+        const user = await process.LOBBY.getUser({
+          userId,
+          chatId,
+          telegramData: msg.from,
+        });
 
         const action = msg.data.split("__");
         const actionFunc = user[action[0]];

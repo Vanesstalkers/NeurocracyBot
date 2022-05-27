@@ -68,7 +68,7 @@ export default class {
     if (Object.keys(replyMarkup).length) {
       options.reply_markup = JSON.stringify(replyMarkup);
     }
-    if (Object.keys(entities||{}).length) {
+    if (Object.keys(entities || {}).length) {
       options.entities = JSON.stringify(entities);
       delete options.parse_mode;
     }
