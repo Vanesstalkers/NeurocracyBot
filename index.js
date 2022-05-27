@@ -59,6 +59,11 @@ try {
 
         const text = msg.text;
 
+        if (user.currentAction?.onTextReceivedHandler) {
+          user.currentAction?.onTextReceivedHandler({ text });
+          return;
+        }
+
         if (!msg.entities) {
           const menuItem = process.BOT_MENU[text];
           if (menuItem) {

@@ -1,4 +1,5 @@
 import { simpleMsgWrapper } from "./BotQueryHelper.js";
+import { simpleMsgWrapper, checkListMsgWrapper } from "./BotQueryHelper.js";
 
 export default class User {
   id;
@@ -45,6 +46,11 @@ export default class User {
         inlineKeyboard: [[{ text: "И тебе привет", callback_data: "hello" }]],
       })
     );
+  }
+  resetCurrentAction() {
+    delete this.lastMsgId;
+    delete this.currentAction;
+    delete this.checkList;
   }
   async sendSystemErrorMsg({ err } = {}) {
     const sorryText = `У нас тут что-то сломалось, но программисты уже все чинят. Попробуй обновить меня командой /start и попробовать все заново.\n`;
