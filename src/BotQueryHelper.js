@@ -1,9 +1,8 @@
 export default {};
 
-export function startMenuMsg({ text, inlineKeyboard } = {}) {
+export function simpleMsgWrapper({ ...options } = {}) {
   return {
     chatId: this.currentChat,
-    text,
-    inlineKeyboard,
+    ...options,
   };
 }
