@@ -52,6 +52,7 @@ export default class {
     text,
     keyboard,
     inlineKeyboard,
+    entities,
     parseMode,
     replyId,
   } = {}) {
@@ -66,6 +67,10 @@ export default class {
     }
     if (Object.keys(replyMarkup).length) {
       options.reply_markup = JSON.stringify(replyMarkup);
+    }
+    if (Object.keys(entities||{}).length) {
+      options.entities = JSON.stringify(entities);
+      delete options.parse_mode;
     }
 
     if (replyId) {

@@ -1,4 +1,4 @@
-import { startMenuMsg } from "./BotQueryHelper.js";
+import { simpleMsgWrapper } from "./BotQueryHelper.js";
 
 export default class User {
   id;
@@ -40,11 +40,22 @@ export default class User {
   }
   async startMsg({ msg } = {}) {
     await process.BOT.sendMessage(
-      startMenuMsg.call(this, {
+      simpleMsgWrapper.call(this, {
         text: `Привет, друг!`,
-        inlineKeyboard: [[
-            { text: 'И тебе привет', callback_data: 'hello' },
-        ]],
+        inlineKeyboard: [[{ text: "И тебе привет", callback_data: "hello" }]],
+      })
+    );
+  }
+  async sendSystemErrorMsg({ err } = {}) {
+    const sorryText = `У нас тут что-то сломалось, но программисты уже все чинят. Попробуй обновить меня командой /start и попробовать все заново.\n`;
+    const errText = `\nError message: '${err?.message}'.`;
+
+    await process.BOT.sendMessage(
+      simpleMsgWrapper.call(this, {
+        text: sorryText + errText,
+        entities: [
+          { type: "spoiler", offset: sorryText.length, length: errText.length },
+        ],
       })
     );
   }
