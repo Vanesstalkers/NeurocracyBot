@@ -106,7 +106,10 @@ try {
         if (actionFunc) {
           await actionFunc.call(user, { msgId, data: action });
         } else {
-          throw new Error(`action "${action[0]}" not found`);
+          user.sendSystemErrorMsg({
+            err: new Error(`action "${action[0]}" not found`),
+          });
+          //throw new Error(`action "${action[0]}" not found`);
         }
       } catch (err) {
         new errorCatcher(err);
