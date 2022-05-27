@@ -96,7 +96,7 @@ export default class User {
           [
             saveAnswerCB({
               text: `${who} ${companion ? "хочет" : "хочу"} петь/танцевать`,
-              code: "mind",
+              code: "dance",
             }),
           ],
           [
