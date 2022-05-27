@@ -54,7 +54,7 @@ try {
         // + после pinChatMessage прилетает сообщение от бота, которое ломает getUser
         if (msg.from.is_bot) return;
 
-        const user = await process.LOBBY.getUser({ userId, chatId });
+        const user = await process.LOBBY.getUser({ userId, chatId, telegramData: msg.from });
         if (!user) return;
 
         const text = msg.text;
@@ -103,7 +103,7 @@ try {
         // пока что функционал обработки событий от ботов не нужен
         if (msg.from.is_bot) return;
 
-        const user = await process.LOBBY.getUser({ userId, chatId });
+        const user = await process.LOBBY.getUser({ userId, chatId, telegramData: msg.from });
 
         const action = msg.data.split("__");
         const actionFunc = user[action[0]];
