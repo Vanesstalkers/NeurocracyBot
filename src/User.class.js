@@ -291,7 +291,8 @@ export default class User {
       },
     ];
 
-    await process.BOT.sendMessage(checkListMsgWrapper.call(this));
+    const msg = await process.BOT.sendMessage(checkListMsgWrapper.call(this));
+    this.lastMsgId = msg.message_id;
   }
   async getAddress() {
     const place = {
@@ -342,7 +343,10 @@ export default class User {
     this.currentAction.answers[step.code].answerText = text;
     await this.checkListNextStep();
   }
-  async saveAnswer({ data = [] } = {}) {
+  async saveAnswer({ msgId, data = [] } = {}) {
+    
+    if (msgId !== this.lastMsgId) return;
+    
     const [actionName, answerCode, custom] = data;
     const answers = this.currentAction.answers;
     const step = this.checkList.steps[this.checkList.currentStep];
