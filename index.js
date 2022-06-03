@@ -1,120 +1,130 @@
+"use strict";
 
-import TelegramApi from 'node-telegram-bot-api';
-import EventEmitter from 'events';
+import config from "./config.js";
+import pg from "pg";
 
-export default class {
-  #api;
-  #testApi;
-  #message_id = 0;
-  constructor({ commands }) {
-      this.#testApi = new EventEmitter();
-      this.#api = new TelegramApi(process.CONFIG.telegram.token, { polling: true });
-      this.#api.setMyCommands(commands);
-  }
-  setHandler({ handler, action }) {
-      this.#api.on(handler, action);
-      this.#testApi.on(handler, action);
-  }
-  async toggleHandler({ handler, msg }) {
-      return new Promise((resolve, reject)=>{
-          msg.message_id = this.#message_id++;
-          console.log('handler', {message_id: msg.message_id});
-          this.#testApi.emit(handler, msg, resolve);
-      });
-  }
-  async sendMessage({ chatId, text, keyboard, inlineKeyboard, parseMode, replyId }) {
-      try {
-          const options = { parse_mode: parseMode || 'HTML' };
-          const replyMarkup = {};
-          if (keyboard) {
-              replyMarkup.keyboard = keyboard;
-              replyMarkup.resize_keyboard = true;
-          }
-          if (inlineKeyboard) {
-              replyMarkup.inline_keyboard = inlineKeyboard;
-          }
-          if (Object.keys(replyMarkup).length) {
-              options.reply_markup = JSON.stringify(replyMarkup);
-          }
+import telegramBot from "./src/TelegramBot.class.js";
+import Lobby from "./src/Lobby.class.js";
 
-          if(replyId){
-              options.reply_to_message_id = replyId;
-              options.allow_sending_without_reply = true;
-          }
+console.error = (...arg) =>
+  console.log(
+    ["\x1b[31m"]
+      .concat(...arg)
+      .concat(["\x1b[30m"])
+      .join(" ")
+  );
+``;
+export class errorCatcher {
+  constructor(err) {
+    console.error(err?.message);
+    console.log(err);
+  }
+}
 
-          if(process.LOBBY.fakeChatList[chatId]){
-              console.log('sendMessage', {chatId, text, options});
-              return {message_id: this.#message_id};
-          }else{
-              return await this.#api.sendMessage(chatId, text, options);
-          }
-      } catch (err) { console.log(err.toString()) }
-  }
-  async editMessageText({ chatId, msgId, text, inlineKeyboard }) {
-      try {
-          const options = { parse_mode: 'HTML' };
-          options.chat_id = chatId;
-          options.message_id = msgId;
-          if (inlineKeyboard) {
-              options.reply_markup = JSON.stringify({ inline_keyboard: inlineKeyboard });
-          }
-          if(process.LOBBY.fakeChatList[chatId]){
-              console.log('editMessageText', {text, options});
-              return {message_id: this.#message_id};
-          }else{
-              return await this.#api.editMessageText(text, options);
-          }
-      } catch (err) { console.log(err.toString()) }
-  }
-  async deleteMessage({ chatId, msgId }) {
-      try {
-          if(process.LOBBY.fakeChatList[chatId]){
-              console.log('deleteMessage', {chatId, msgId});
-              return {message_id: this.#message_id};
-          }else{
-              return await this.#api.deleteMessage(chatId, msgId);
-          }
-      } catch (err) { console.log(err.toString()) }
-  }
-  async pinChatMessage({ chatId, msgId }) {
-      try {
-          if(process.LOBBY.fakeChatList[chatId]){
-              console.log('pinChatMessage', {chatId, msgId});
-              return {message_id: this.#message_id};
-          }else{
-              return await this.#api.pinChatMessage(chatId, msgId);
-          }
-      } catch (err) { console.log(err.toString()) }
-  }
-  async answerInlineQuery({ queryId, results }) {
-      try {
-          if(process.LOBBY.fakeChatList[chatId]){
-              console.log('answerInlineQuery', {queryId, results});
-              return {message_id: this.#message_id};
-          }else{
-              return await this.#api.answerInlineQuery(queryId, JSON.stringify(results));
-          }
-      } catch (err) { console.log(err.toString()) }
-  }
+try {
+  process.CONFIG = config;
+  process.DB = new pg.Pool(config.postgres);
+  process.BOT = new telegramBot();
+  await process.BOT.setCommands([
+    { command: "/start", description: "Стартовое сообщение" },
+  ]);
 
-  async sendLocation({ chatId, latitude, longitude }) {
+  process.LST = {};
+  process.CONSTANTS = {};
+  process.BOT_MENU = {};
+  process.BOT_COMMANDS = {
+    "/start": async function (argList) {
+      await this.startMsg(argList);
+    },
+  };
+
+  process.LOBBY = new Lobby();
+
+  process.BOT.setHandler({
+    handler: "message",
+    action: async function (msg) {
       try {
-          if(process.LOBBY.fakeChatList[chatId]){
-              console.log('sendLocation', {chatId, latitude, longitude});
-              return {message_id: this.#message_id};
-          }else{
-              return await this.#api.sendLocation(chatId, latitude, longitude);
+        //console.log("message", msg);
+
+        const userId = msg.from.id;
+        const chatId = msg.chat.id;
+        const msgId = msg.message_id;
+
+        // пока что функционал обработки событий от ботов не нужен
+        // + после pinChatMessage прилетает сообщение от бота, которое ломает getUser
+        if (msg.from.is_bot) return;
+
+        const user = await process.LOBBY.getUser({ userId, chatId });
+        if (!user) return;
+
+        const text = msg.text;
+
+        if (user.currentAction?.onTextReceivedHandler) {
+          user.currentAction?.onTextReceivedHandler({ text });
+          return;
+        }
+
+        if (!msg.entities) {
+          const menuItem = process.BOT_MENU[text];
+          if (menuItem) {
+            if (typeof menuItem.action === "function") {
+              await menuItem.action.call({ user, msg });
+            }
+          } else {
           }
-      } catch (err) { console.log(err.toString()) }
-  }
-  async sendVenue({ chatId, latitude, longitude, title, address }) {
+        } else {
+          for (let i = 0; i < msg.entities.length; i++) {
+            const entity = msg.entities[i];
+            const command = text.substring(
+              entity.offset,
+              entity.offset + entity.length
+            );
+            if (process.BOT_COMMANDS[command]) {
+              await process.BOT_COMMANDS[command].call(user, { msgId, text });
+            }
+          }
+        }
+      } catch (err) {
+        new errorCatcher(err);
+      }
+    },
+  });
+
+  process.BOT.setHandler({
+    handler: "callback_query",
+    action: async (msg) => {
       try {
-          if(process.LOBBY.fakeChatList[chatId]){
-              console.log('sendVenue', {chatId, latitude, longitude});
-              return {message_id: this.#message_id};
-          }else{
-              return await this.#api.sendVenue(chatId, latitude, longitude, title, address );
-          }
-      } catch (err) { console.log(err.toString()) }
+        //console.log("callback_query", msg);
+
+        const userId = msg.from.id;
+        const chatId = msg.message.chat.id;
+        const msgId = msg.message.message_id;
+
+        // пока что функционал обработки событий от ботов не нужен
+        if (msg.from.is_bot) return;
+
+        const user = await process.LOBBY.getUser({ userId, chatId });
+
+        const action = msg.data.split("__");
+        const actionFunc = user[action[0]];
+
+        if (actionFunc) {
+          await actionFunc.call(user, { msgId, data: action });
+        } else {
+          user.sendSystemErrorMsg({
+            err: new Error(`action "${action[0]}" not found`),
+          });
+          //throw new Error(`action "${action[0]}" not found`);
+        }
+      } catch (err) {
+        new errorCatcher(err);
+      }
+    },
+  });
+} catch (err) {
+  switch (err.message) {
+    default:
+      new errorCatcher(err);
+      break;
   }
 }

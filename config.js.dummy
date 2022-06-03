@@ -1,0 +1,9 @@
+export default {
+    telegram: {
+        token: '???',
+    },
+    postgres: {
+        user: '???',
+        database: '???',
+    },
+};
