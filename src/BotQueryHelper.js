@@ -2,6 +2,7 @@ export default {};
 
 export function simpleMsgWrapper({ ...options } = {}) {
   return {
+    userId: this.id,
     chatId: this.currentChat,
     ...options,
   };
