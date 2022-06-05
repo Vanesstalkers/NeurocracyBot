@@ -1,9 +1,12 @@
 export default {
-    telegram: {
-        token: '???',
-    },
-    postgres: {
-        user: '???',
-        database: '???',
-    },
+  telegram: {
+    token: "???",
+  },
+  postgres: {
+    user: "???",
+    database: "???",
+  },
+  webapp: {
+    url: "???",
+  },
 };
