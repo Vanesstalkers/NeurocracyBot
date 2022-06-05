@@ -1,4 +1,5 @@
 import { BuildableClass } from "./Base.class.js";
+import Question from "./userEvents/question.js";
 
 import { simpleMsgWrapper, checkListMsgWrapper } from "./BotQueryHelper.js";
 
@@ -82,6 +83,40 @@ export default class User extends BuildableClass {
 
   startMenuMarkup() {
     return [
+      [
+        this.menuItem({
+          text: "🏆 Вопрос",
+          actionHandler: async function () {
+            await this.newQuestionEvent();
+          },
+        }),
+        this.menuItem({
+          text: "🏆 Оценка",
+          actionHandler: async function () {
+            console.log("🏆 Оценка");
+          },
+        }),
+      ],
+      [
+        this.menuItem({
+          text: "🎓 Навыки",
+          web_app: {
+            url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=skillList`,
+          },
+        }),
+        this.menuItem({
+          text: this.alertCount > 0 ? `🔔 (${this.alertCount})` : "🔕",
+          web_app: {
+            url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=alertList`,
+          },
+        }),
+        this.menuItem({
+          text: "🛠️ Меню",
+          actionHandler: async function () {
+            console.log("🛠️ Меню");
+          },
+        }),
+      ],
     ];
   }
   menuItem(item) {
@@ -130,6 +165,19 @@ export default class User extends BuildableClass {
     );
   }
 
+  async newQuestionEvent() {
+    if (await this.lastMsgCheck()) {
+      this.resetCurrentAction();
+      this.currentAction = await Question.build({ parent: this });
+    }
+  }
+  async newRateEvent() {
+    if (await this.lastMsgCheck()) {
+      this.resetCurrentAction();
+      // this.currentAction = await Rate.build({ parent: this });
+    }
+  }
+
   async help() {
     if (!this.currentAction) {
       await this.sendSimpleAnswer({
@@ -139,8 +187,22 @@ export default class User extends BuildableClass {
       this.currentAction?.help();
     }
   }
-  async sendSimpleAnswer({ text }) {
+  async sendSimpleAnswer({ text, btnQ = true, btnA = true }) {
     const inlineKeyboard = [];
+    if (btnQ)
+      inlineKeyboard.push([
+        {
+          text: "Задать новый вопрос",
+          callback_data: "newQuestionEvent",
+        },
+      ]);
+    if (btnA)
+      inlineKeyboard.push([
+        {
+          text: "Оценить чужой вопрос",
+          callback_data: "newRateEvent",
+        },
+      ]);
     await BOT.sendMessage({
       chatId: this.currentChat,
       text,
