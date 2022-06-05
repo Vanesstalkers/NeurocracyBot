@@ -1,5 +1,6 @@
 import { BuildableClass } from "./Base.class.js";
 import CheckList from "./userEvents/checkList.js";
+import Broadcast from "./userEvents/Broadcast.js";
 
 export default class User extends BuildableClass {
   id;
@@ -396,5 +397,13 @@ export default class User extends BuildableClass {
           : ""),
       replyId: this.lastMsg?.id,
     });
+  }
+
+  async newBroadcast() {
+    // if (await this.lastMsgCheck()) {
+    //   this.resetCurrentAction();
+      this.currentAction = await Broadcast.build({ parent: this });
+      this.currentAction.start();
+    // }
   }
 }

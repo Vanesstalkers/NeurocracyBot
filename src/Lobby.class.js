@@ -12,7 +12,16 @@ export default class Lobby extends BuildableClass {
   }
   static async build() {
     globalThis.BOT = await telegramBot.build({
-      commandList: botCommandsLST,
+      commandList: Object.fromEntries(
+        Object.entries(botCommandsLST).filter(
+          ([key, command]) => !command.admin
+        )
+      ),
+      adminCommandList: Object.fromEntries(
+        Object.entries(botCommandsLST).filter(
+          ([key, command]) => command.admin
+        )
+      ),
       handlerList: {
         message: async function (msg) {
           try {
@@ -26,10 +35,17 @@ export default class Lobby extends BuildableClass {
             // + после pinChatMessage прилетает сообщение от бота, которое ломает getUser
             if (msg.from.is_bot) return;
 
-            const user = await LOBBY.getUser({ userId, chatId });
+            const user = await LOBBY.getUser({ userId, chatId, telegramData: msg.from });
             if (!user) return;
 
             const text = msg.text;
+            if (this.adminCommandList[text]) {
+              await this.adminCommandList[text].action.call(user, {
+                msgId,
+                text,
+              });
+              return;
+            }
 
             if (!msg.entities) {
               const menuHandler = user.getMenuHandler(text);
