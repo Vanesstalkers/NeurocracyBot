@@ -81,7 +81,8 @@ export default class Lobby extends BuildableClass {
               user.currentAction?.[action[0]] || user[action[0]];
 
             if (actionFunc) {
-              if (user.currentAction) {
+              // if (user.currentAction?.[action[0]] && !action.includes("forceActionCall")) {
+              if (user.currentAction?.[action[0]]) {
                 if (await user.lastMsgCheck({ msgId })) {
                   await actionFunc.call(user.currentAction, {
                     msgId,

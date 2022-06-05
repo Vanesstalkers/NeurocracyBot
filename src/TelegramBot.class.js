@@ -186,7 +186,14 @@ export default class TelegramBot extends BuildableClass {
         .catch(this.errorHandler({ userId, chatId, method: "sendLocation" }));
     }
   }
-  async sendVenue({ chatId, latitude, longitude, title, address } = {}) {
+  async sendVenue({
+    userId,
+    chatId,
+    latitude,
+    longitude,
+    title,
+    address,
+  } = {}) {
     if (LOBBY.fakeChatList[chatId]) {
       console.log("sendVenue", { chatId, latitude, longitude });
       return { message_id: this.#message_id };
