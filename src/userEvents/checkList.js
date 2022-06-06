@@ -25,6 +25,9 @@ export default class CheckList extends Event {
   setSteps(steps) {
     this.steps = steps;
   }
+  setFinalAction(action){
+    this.finalAction = action;
+  }
   saveAnswerCB(obj, ...params) {
     obj.callback_data = ["saveAnswer", obj.code].concat(params).join("__");
     return obj;
@@ -105,21 +108,7 @@ export default class CheckList extends Event {
         lastMsgCheckErrorText: undefined, // тут можно написать кастомный текст
       });
     } else {
-      const user = this.getParent();
-      const query = {
-        text: `
-                    UPDATE users
-                    SET data = data || jsonb_build_object('weddingAnswers', $1::jsonb)
-                    WHERE id = $2;
-                `,
-        values: [this.answers, user.id],
-      };
-      await DB.query(query);
-      await BOT.sendMessage({
-        chatId: user.currentChat,
-        text: "Вы ответили на все вопросы. Спасибо!\nЧуть позже мы пришлем дополнительную информацию, так что не удаляйте этого бота. Будем на связи 😉",
-      });
-      user.resetCurrentAction();
+      if(this.finalAction) await this.finalAction();
     }
   }
   async saveText({ text } = {}) {

@@ -352,6 +352,23 @@ export default class User extends BuildableClass {
         inlineKeyboard: inlineKeyboards.activity({ companion: true }),
       },
     ]);
+    checkList.setFinalAction(async function () {
+      const user = this.getParent();
+      const query = {
+        text: `
+                    UPDATE users
+                    SET data = data || jsonb_build_object('weddingAnswers', $1::jsonb)
+                    WHERE id = $2;
+                `,
+        values: [this.answers, user.id],
+      };
+      await DB.query(query);
+      await BOT.sendMessage({
+        chatId: user.currentChat,
+        text: "Вы ответили на все вопросы. Спасибо!\nЧуть позже мы пришлем дополнительную информацию, так что не удаляйте этого бота. Будем на связи 😉",
+      });
+      user.resetCurrentAction();
+    });
     this.currentAction = checkList;
     this.currentAction.start();
   }
