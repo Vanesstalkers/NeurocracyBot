@@ -1,6 +1,6 @@
 import { BuildableClass } from "./Base.class.js";
 import CheckList from "./userEvents/checkList.js";
-import Broadcast from "./userEvents/Broadcast.js";
+import Broadcast from "./userEvents/broadcast.js";
 
 export default class User extends BuildableClass {
   id;
