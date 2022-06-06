@@ -3,6 +3,13 @@ import telegramBot from "./TelegramBot.class.js";
 import User from "./User.class.js";
 import botCommandsLST from "./lst/botCommands.js";
 
+export function toCBD(){
+  return [...arguments].join('__');
+}
+export function fromCBD(callback_data){
+  return callback_data.split('__');
+}
+
 export default class Lobby extends BuildableClass {
   userList = {};
   fakeChatList = {};
@@ -53,10 +60,10 @@ export default class Lobby extends BuildableClass {
                 menuHandler === undefined &&
                 user.currentAction?.onTextReceivedHandler
               ) {
-                user.currentAction?.onTextReceivedHandler({ text });
+                await user.currentAction?.onTextReceivedHandler({ text });
                 return;
               }
-              if (user.handleMenuAction(text)) {
+              if (await user.handleMenuAction(text)) {
                 return;
               } else {
               }
@@ -92,7 +99,7 @@ export default class Lobby extends BuildableClass {
 
             const user = await LOBBY.getUser({ userId, chatId });
 
-            const action = msg.data.split("__");
+            const action = fromCBD(msg.data);
             const actionFunc =
               user.currentAction?.[action[0]] || user[action[0]];
 
@@ -132,7 +139,7 @@ export default class Lobby extends BuildableClass {
     } else {
       if (this.userList[userId]) return this.userList[userId];
       if (!chatId) throw new Error("chatId not found");
-      const user = await User.build({ userId, userData, telegramData });
+      const user = await User.build({ userId, chatId, userData, telegramData });
       this.userList[userId] = user;
       this.userList[userId].currentChat = chatId;
       if (fake) this.fakeChatList[this.userList[userId].currentChat] = true;

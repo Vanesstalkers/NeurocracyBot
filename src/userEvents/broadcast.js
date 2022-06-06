@@ -38,18 +38,21 @@ export default class Broadcast extends Event {
     this.broadcastText = text;
     await BOT.editMessageText(this.startMsgWrapper());
   }
-  async edit({ text } = {}) {
+  async edit() {
     // не акутально, так как this.onTextReceivedHandler не сбрасывается
     this.onTextReceivedHandler = this.saveText;
   }
-  async send({ text } = {}) {
+  async send() {
     const queryData = await DB.query(
       `
                 SELECT u.id
                 FROM users u
             `,
       []
-    );
+    ).catch(async (err) => {
+      this.getParent().sendSystemErrorMsg({ err });
+      throw new Error(err);
+    });
     console.log(
       "queryData.rows=",
       queryData.rows,

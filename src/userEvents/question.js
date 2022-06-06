@@ -1,4 +1,5 @@
 import { Event } from "../Base.class.js";
+import { toCBD } from "../Lobby.class.js";
 import skillLST from "../lst/skill.js";
 
 export default class Question extends Event {
@@ -40,16 +41,20 @@ export default class Question extends Event {
     });
   }
   createMsg({ error = null, info = null, reward = null } = {}) {
+    const hideInfo = this.info && !this.info.hide;
+
     let text =
       "Выберите от 2 до 4 сфер компетенций из предложенного списка и задайте свой вопрос, относящийся одновременно ко всем выбранным навыкам (<u>отправьте его как обычное сообщение в чат</u>).";
-    text += " " + this.stringifyCheckedSkills();
     let inlineKeyboard = [
       [
         {
           text: "Заменить список",
           callback_data: "changeSkills",
         },
-        { text: "ℹ️ Подсказка", callback_data: "help" },
+        {
+          text: `ℹ️ ${hideInfo ? "скрыть" : "Подсказка"}`,
+          callback_data: "help",
+        },
       ],
     ].concat(this.keyboardFromSkills());
 
@@ -62,12 +67,11 @@ export default class Question extends Event {
     //   // }
     //   inlineKeyboard = [];
     // }
-    // if (info) {
-    //   text += "\n\n" + info;
-    // }
-    if (error) {
-      text += "\n\n" + this.stringifyError({ error });
-    }
+
+    if (hideInfo) text += "\n\n" + this.info.text;
+    text += "\n" + this.stringifyCheckedSkills();
+    if (error) text += "\n\n" + this.stringifyError({ error });
+    
     const user = this.getParent();
     return {
       userId: user.id,
@@ -95,7 +99,6 @@ export default class Question extends Event {
     } else if (text.length < minQuestionLength) {
       error = `Длина вопроса меньше необходимой (минимальное количество символов: ${minQuestionLength}).`;
     }
-
     const user = this.getParent();
     if (error) {
       if (await BOT.editMessageText(this.createMsg({ error }))) {
@@ -115,8 +118,11 @@ export default class Question extends Event {
           user.lastMsg.id,
           user.currentChat,
         ]
-      );
-      await this.sendSimpleAnswer({
+      ).catch(async function (err) {
+        await user.sendSystemErrorMsg({ err });
+        throw new Error(err);
+      });
+      await user.sendSimpleAnswer({
         text:
           `Cохранен вопрос:\n<b>${text}</b>.\nВыбраные компетенции:\n` +
           checkedSkillList.map((skill) => `<b>${skill.label}</b>`).join(", ") +
@@ -143,39 +149,77 @@ export default class Question extends Event {
       const buttonList = [
         {
           text: skill.label,
-          callback_data: ["updateSkills", skill.code].join("__"),
+          callback_data: toCBD("updateSkills", skill.code, "pick"),
         },
       ];
       if (skill.checked)
         buttonList.push({
           text: "отменить выбор",
-          callback_data: ["updateSkills", skill.code, "delete"].join("__"),
+          callback_data: toCBD("updateSkills", skill.code, "delete"),
         });
       return buttonList;
     });
   }
-  async changeSkills({ msgId }) {
-      // if (msgId !== this.lastMsgId) {
-      //   await this.sendSimpleError({ error: "Эта задача уже не актуальна" });
-      //   return; // old question button
-      // }
-
-      const msg = await BOT.sendMessage({
-        chatId: this.getParent().currentChat,
+  async changeSkills() {
+    const user = this.getParent();
+    await BOT.sendMessage(
+      {
+        userId: user.id,
+        chatId: user.currentChat,
         text: "ℹ️ Вы можете заменить предложенные сферы компетенций, однако платформа расценит это как недостаток соответствующих знаний и навыков, из-за чего несколько понизит оценки ваших характеристик.\n<b>Вы подтверждаете замену списка сфер компетенций для вопроса?</b>",
         inlineKeyboard: [
           [
             {
               text: "Подтвердить замену",
-              callback_data: 'process.CONSTANTS.acceptChangeSkills',
+              callback_data: toCBD("acceptChangeSkills"),
             },
             {
               text: "Отменить замену",
-              callback_data: 'process.CONSTANTS.cancelChangeSkills',
+              callback_data: toCBD("cancelChangeSkills"),
             },
           ],
         ],
-      });
-      // this.confirmMsgId = msg.message_id;
+      },
+      { saveAsLastConfirmMsg: true }
+    );
+  }
+  async acceptChangeSkills() {
+    const user = this.getParent();
+    user.resetCurrentAction();
+    await user.sendSimpleAnswer({
+      text: "Вы можете заново выбрать одно из действий.",
+    });
+  }
+  async cancelChangeSkills({ msgId }) {
+    const user = this.getParent();
+    await BOT.deleteMessage({
+      userId: user.id,
+      chatId: user.currentChat,
+      msgId,
+    });
+  }
+  async updateSkills({ data: [thisFuncName, skillCode, actionType] }) {
+    const skill = this.skillList.find((skill) => skill.code === skillCode);
+    if (skill.checked && actionType === "pick") return; // already checked skill
+    skill.checked = actionType === "pick";
+    await BOT.editMessageText(this.createMsg());
+  }
+  async help() {
+    if (this.info) {
+      this.info.hide = !this.info.hide;
+    } else {
+      const info = [];
+      for (const skill of this.skillList) {
+        const lstSkill = skillLST[skill.code];
+        info.push(
+          `ℹ️ <b>${lstSkill.label}:</b> <i>${lstSkill.info || "-"}</i>`
+        );
+      }
+      this.info = {
+        hide: false,
+        text: info.join("\n"),
+      };
+    }
+    await BOT.editMessageText(this.createMsg());
   }
 }

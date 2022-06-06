@@ -1,4 +1,5 @@
 import { BuildableClass } from "./Base.class.js";
+import Broadcast from "./userEvents/broadcast.js";
 import Question from "./userEvents/question.js";
 
 export default class User extends BuildableClass {
@@ -9,7 +10,17 @@ export default class User extends BuildableClass {
     super(...arguments);
     this.id = userData.id;
   }
-  static async build({ userId, userData = {}, telegramData = {} } = {}) {
+  static async build({
+    userId,
+    chatId,
+    userData = {},
+    telegramData = {},
+  } = {}) {
+    const errorHandler = async function (err) {
+      User.sendSystemErrorMsg({ err, userId, chatId });
+      throw new Error(err);
+    };
+
     const queryData = await DB.query(
       `
                 SELECT u.id, u.data
@@ -18,7 +29,7 @@ export default class User extends BuildableClass {
                 GROUP BY u.id
             `,
       [userId]
-    );
+    ).catch(errorHandler);
     const user = queryData.rows[0] || {};
     if (!user.id) {
       const queryResult = await DB.query(
@@ -28,7 +39,7 @@ export default class User extends BuildableClass {
                     RETURNING id
                 `,
         [userId, userData, telegramData]
-      );
+      ).catch(errorHandler);
       user.id = queryResult.rows[0].id;
       user.data = userData;
     } else {
@@ -39,14 +50,18 @@ export default class User extends BuildableClass {
                     WHERE id = $2
                 `,
         [telegramData, userId]
-      );
+      ).catch(errorHandler);
     }
     return new User({ ...user, createdFromBuilder: true });
   }
 
   async lastMsgCheck({ msgId } = {}) {
     const activeEvent = !msgId && this.lastMsg?.id;
-    const oldEvent = msgId && this.lastMsg?.id !== msgId;
+    const oldEvent =
+      msgId &&
+      this.lastMsg?.id !== msgId &&
+      msgId !== this.lastMsg?.confirmMsgId;
+
     if (activeEvent || oldEvent) {
       await this.sendSimpleError({
         error:
@@ -65,12 +80,17 @@ export default class User extends BuildableClass {
     delete this.currentAction;
   }
   async sendSystemErrorMsg({ err } = {}) {
-    const sorryText = `У нас тут что-то сломалось, но программисты уже все чинят. Попробуй обновить меня командой /start и попробовать все заново.\n`;
-    const errText = `\nError message: '${err?.message}'.`;
+    User.sendSystemErrorMsg({ err, userId: this.id, chatId: this.currentChat });
+  }
+  static async sendSystemErrorMsg({ err, userId, chatId } = {}) {
+    const sorryText = `У нас тут что-то сломалось, но программисты уже все чинят. Можете обновить меня командой /start и попробовать все заново.`;
+    const errText = `Error message: '${err?.message}'.`;
 
     await BOT.sendMessage(
-      this.simpleMsgWrapper.call(this, {
-        text: sorryText + errText,
+      this.simpleMsgWrapper({
+        userId,
+        chatId,
+        text: sorryText + " " + errText,
         entities: [
           { type: "spoiler", offset: sorryText.length, length: errText.length },
         ],
@@ -78,9 +98,16 @@ export default class User extends BuildableClass {
     );
   }
   simpleMsgWrapper({ ...options } = {}) {
-    return {
+    return User.simpleMsgWrapper({
       userId: this.id,
       chatId: this.currentChat,
+      ...options,
+    });
+  }
+  static simpleMsgWrapper({ userId, chatId, ...options } = {}) {
+    return {
+      userId: userId || this.id,
+      chatId: chatId || this.currentChat,
       ...options,
     };
   }
@@ -153,14 +180,14 @@ export default class User extends BuildableClass {
 
   async startMsg({ msg } = {}) {
     await BOT.sendMessage(
-      simpleMsgWrapper.call(this, {
+      this.simpleMsgWrapper({
         text: `Приветствую! У вас есть меню.`,
         keyboard: this.startMenuMarkup.call(this),
       })
     );
     this.menuReady(true);
     await BOT.sendMessage(
-      simpleMsgWrapper.call(this, {
+      this.simpleMsgWrapper({
         text: `У вас есть вопросы?`,
         inlineKeyboard: [
           [{ text: "Вопросов нет, давай начинать!", callback_data: "hello" }],

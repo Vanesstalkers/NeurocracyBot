@@ -1,4 +1,5 @@
 import { Event } from "../Base.class.js";
+import { toCBD } from "../Lobby.class.js";
 
 export default class CheckList extends Event {
   answers = {};
@@ -29,7 +30,7 @@ export default class CheckList extends Event {
     this.finalAction = action;
   }
   saveAnswerCB(obj, ...params) {
-    obj.callback_data = ["saveAnswer", obj.code].concat(params).join("__");
+    obj.callback_data = toCBD("saveAnswer", obj.code, ...params); // не тестировал
     return obj;
   }
   checkListMsgWrapper({ msgId } = {}) {
