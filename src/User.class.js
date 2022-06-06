@@ -1,8 +1,6 @@
 import { BuildableClass } from "./Base.class.js";
 import Question from "./userEvents/question.js";
 
-import { simpleMsgWrapper, checkListMsgWrapper } from "./BotQueryHelper.js";
-
 export default class User extends BuildableClass {
   id;
   #textHandlerList = {};
@@ -48,7 +46,7 @@ export default class User extends BuildableClass {
 
   async lastMsgCheck({ msgId } = {}) {
     const activeEvent = !msgId && this.lastMsg?.id;
-    const oldEvent =  msgId && this.lastMsg?.id !== msgId;
+    const oldEvent = msgId && this.lastMsg?.id !== msgId;
     if (activeEvent || oldEvent) {
       await this.sendSimpleError({
         error:
@@ -65,20 +63,26 @@ export default class User extends BuildableClass {
   resetCurrentAction() {
     delete this.lastMsg;
     delete this.currentAction;
-    delete this.checkList;
   }
   async sendSystemErrorMsg({ err } = {}) {
     const sorryText = `У нас тут что-то сломалось, но программисты уже все чинят. Попробуй обновить меня командой /start и попробовать все заново.\n`;
     const errText = `\nError message: '${err?.message}'.`;
 
     await BOT.sendMessage(
-      simpleMsgWrapper.call(this, {
+      this.simpleMsgWrapper.call(this, {
         text: sorryText + errText,
         entities: [
           { type: "spoiler", offset: sorryText.length, length: errText.length },
         ],
       })
     );
+  }
+  simpleMsgWrapper({ ...options } = {}) {
+    return {
+      userId: this.id,
+      chatId: this.currentChat,
+      ...options,
+    };
   }
 
   startMenuMarkup() {
@@ -215,10 +219,18 @@ export default class User extends BuildableClass {
       text:
         "<b>Ошибка</b>: " +
         error +
-        (this.lastMsgId
+        (this.lastMsg?.id
           ? "\n<i>Актуальная задача прикреплена к данному сообщению.</i>"
           : ""),
-      replyId: this.lastMsgId,
+      replyId: this.lastMsg?.id,
     });
+  }
+
+  async newBroadcast() {
+    // if (await this.lastMsgCheck()) {
+    //   this.resetCurrentAction();
+      this.currentAction = await Broadcast.build({ parent: this });
+      this.currentAction.start();
+    // }
   }
 }

@@ -23,4 +23,11 @@ export default {
       await this.help(...arguments);
     },
   },
+  "/admin": {
+    admin: true,
+    description: "admin",
+    action: async function () {
+      this.newBroadcast(...arguments);
+    },
+  },
 };
