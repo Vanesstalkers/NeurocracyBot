@@ -6,16 +6,17 @@ export default class TelegramBot extends BuildableClass {
   #api;
   #testApi;
   #message_id = 0;
-  constructor({ api, commandList, handlerList } = {}) {
+  constructor({ api, commandList, adminCommandList, handlerList } = {}) {
     super(...arguments);
     this.#api = api;
     this.#testApi = new EventEmitter();
     this.commandList = commandList;
+    this.adminCommandList = adminCommandList;
     for (const [handler, action] of Object.entries(handlerList)) {
       this.setHandler({ handler, action: action.bind(this) });
     }
   }
-  static async build({ commandList, handlerList } = {}) {
+  static async build({ commandList, adminCommandList, handlerList } = {}) {
     const api = new TelegramApi(CONFIG.telegram.token, {
       polling: false,
     });
@@ -42,6 +43,7 @@ export default class TelegramBot extends BuildableClass {
     return new TelegramBot({
       api,
       commandList,
+      adminCommandList,
       handlerList,
       createdFromBuilder: true,
     });
@@ -186,7 +188,14 @@ export default class TelegramBot extends BuildableClass {
         .catch(this.errorHandler({ userId, chatId, method: "sendLocation" }));
     }
   }
-  async sendVenue({ chatId, latitude, longitude, title, address } = {}) {
+  async sendVenue({
+    userId,
+    chatId,
+    latitude,
+    longitude,
+    title,
+    address,
+  } = {}) {
     if (LOBBY.fakeChatList[chatId]) {
       console.log("sendVenue", { chatId, latitude, longitude });
       return { message_id: this.#message_id };
