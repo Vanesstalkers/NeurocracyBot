@@ -1,5 +1,5 @@
 import { BuildableClass } from "./Base.class.js";
-import Broadcast from "./userEvents/broadcast.js";
+//import Broadcast from "./userEvents/broadcast.js";
 import Table from "./userEvents/table.js";
 import Question from "./userEvents/question.js";
 import { toCBD } from "./Lobby.class.js";
@@ -230,7 +230,7 @@ export default class User extends BuildableClass {
     await BOT.sendMessage(
       this.simpleMsgWrapper({
         text: `Приветствую Вас, ${this.telegram.username}!`,
-        keyboard: this.startMenuMarkup.call(this),
+        keyboard: this.startMenuMarkup(),
       })
     );
 
@@ -456,4 +456,11 @@ export default class User extends BuildableClass {
     );
     table.start();
   }
+  // async newBroadcast() {
+  //   // if (await this.lastMsgCheck()) {
+  //   //   this.resetCurrentAction();
+  //     this.currentAction = await Broadcast.build({ parent: this });
+  //     this.currentAction.start();
+  //   // }
+  // }
 }
