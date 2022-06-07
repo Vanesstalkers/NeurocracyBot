@@ -114,15 +114,7 @@ export default class TelegramBot extends BuildableClass {
 
       if (saveMsgConfig) {
         const user = await LOBBY.getUser({ userId, chatId });
-        if (saveMsgConfig.saveAsLastConfirmMsg) {
-          user.lastMsg.confirmMsgId = msg.message_id;
-        } else {
-          user.lastMsg = {
-            id: msg.message_id,
-            text,
-            ...saveMsgConfig,
-          };
-        }
+        user.setLastMsg({msg, text, config: saveMsgConfig});
       }
       return msg;
     }

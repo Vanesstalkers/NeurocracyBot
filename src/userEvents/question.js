@@ -13,11 +13,11 @@ export default class Question extends Event {
     return question;
   }
   async help() {
-    const user = this.getParent();
-    await BOT.sendMessage({
-      chatId: user.currentChat,
-      text: "Задайте вопрос, относящийся одновременно ко всем отмеченным вами темам.",
-    });
+    await BOT.sendMessage(
+      this.getParent().simpleMsgWrapper({
+        text: "Задайте вопрос, относящийся одновременно ко всем отмеченным вами темам.",
+      })
+    );
   }
   async init() {
     this.skillList = [];
@@ -36,9 +36,7 @@ export default class Question extends Event {
       });
     }
 
-    await BOT.sendMessage(this.createMsg(), {
-      lastMsgCheckErrorText: undefined, // тут можно написать кастомный текст
-    });
+    await BOT.sendMessage(this.createMsg(), true);
   }
   createMsg({ error = null, info = null, reward = null } = {}) {
     const hideInfo = this.info && !this.info.hide;
@@ -49,11 +47,11 @@ export default class Question extends Event {
       [
         {
           text: "Заменить список",
-          callback_data: "changeSkills",
+          callback_data: toCBD("changeSkills"),
         },
         {
           text: `ℹ️ ${hideInfo ? "скрыть" : "Подсказка"}`,
-          callback_data: "help",
+          callback_data: toCBD("showSkillsDecription"),
         },
       ],
     ].concat(this.keyboardFromSkills());
@@ -71,15 +69,13 @@ export default class Question extends Event {
     if (hideInfo) text += "\n\n" + this.info.text;
     text += "\n" + this.stringifyCheckedSkills();
     if (error) text += "\n\n" + this.stringifyError({ error });
-    
+
     const user = this.getParent();
-    return {
-      userId: user.id,
-      chatId: user.currentChat,
+    return user.simpleMsgWrapper({
       msgId: user.lastMsg?.id,
       text,
       inlineKeyboard,
-    };
+    });
   }
   stringifyError({ error }) {
     // избавляет от ошибки "message is not modified" + визуализирует для полльзователя, что ошибка осталась
@@ -161,11 +157,8 @@ export default class Question extends Event {
     });
   }
   async changeSkills() {
-    const user = this.getParent();
     await BOT.sendMessage(
-      {
-        userId: user.id,
-        chatId: user.currentChat,
+      this.getParent().simpleMsgWrapper({
         text: "ℹ️ Вы можете заменить предложенные сферы компетенций, однако платформа расценит это как недостаток соответствующих знаний и навыков, из-за чего несколько понизит оценки ваших характеристик.\n<b>Вы подтверждаете замену списка сфер компетенций для вопроса?</b>",
         inlineKeyboard: [
           [
@@ -179,7 +172,7 @@ export default class Question extends Event {
             },
           ],
         ],
-      },
+      }),
       { saveAsLastConfirmMsg: true }
     );
   }
@@ -198,13 +191,13 @@ export default class Question extends Event {
       msgId,
     });
   }
-  async updateSkills({ data: [thisFuncName, skillCode, actionType] }) {
+  async updateSkills({ data: [skillCode, actionType] }) {
     const skill = this.skillList.find((skill) => skill.code === skillCode);
     if (skill.checked && actionType === "pick") return; // already checked skill
     skill.checked = actionType === "pick";
     await BOT.editMessageText(this.createMsg());
   }
-  async help() {
+  async showSkillsDecription() {
     if (this.info) {
       this.info.hide = !this.info.hide;
     } else {

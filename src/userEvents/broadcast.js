@@ -8,9 +8,7 @@ export default class Broadcast extends Event {
     return new Broadcast({ parent: user, createdFromBuilder: true });
   }
   async start() {
-    await BOT.sendMessage(this.startMsgWrapper(), {
-      lastMsgCheckErrorText: undefined, // тут можно написать кастомный текст
-    });
+    await BOT.sendMessage(this.startMsgWrapper(), true);
   }
   startMsgWrapper() {
     const user = this.getParent();
@@ -26,13 +24,11 @@ export default class Broadcast extends Event {
       ];
     }
     this.onTextReceivedHandler = this.saveText;
-    return {
-      userId: user.id,
-      chatId: user.currentChat,
+    return user.simpleMsgWrapper({
       msgId: user.lastMsg?.id,
       text,
       inlineKeyboard,
-    };
+    });
   }
   async saveText({ text } = {}) {
     this.broadcastText = text;
@@ -59,6 +55,7 @@ export default class Broadcast extends Event {
       "broadcastText=",
       this.broadcastText
     );
+    //queryData.rows = [{id:267280060}];
     for (const row of queryData.rows) {
       await BOT.sendMessage({
         chatId: row.id,
