@@ -3,6 +3,13 @@ import telegramBot from "./TelegramBot.class.js";
 import User from "./User.class.js";
 import botCommandsLST from "./lst/botCommands.js";
 
+export function toCBD() {
+  return [...arguments].join("__");
+}
+export function fromCBD(callback_data) {
+  return callback_data.split("__");
+}
+
 export default class Lobby extends BuildableClass {
   userList = {};
   fakeChatList = {};
@@ -18,9 +25,7 @@ export default class Lobby extends BuildableClass {
         )
       ),
       adminCommandList: Object.fromEntries(
-        Object.entries(botCommandsLST).filter(
-          ([key, command]) => command.admin
-        )
+        Object.entries(botCommandsLST).filter(([key, command]) => command.admin)
       ),
       handlerList: {
         message: async function (msg) {
@@ -35,7 +40,11 @@ export default class Lobby extends BuildableClass {
             // + после pinChatMessage прилетает сообщение от бота, которое ломает getUser
             if (msg.from.is_bot) return;
 
-            const user = await LOBBY.getUser({ userId, chatId, telegramData: msg.from });
+            const user = await LOBBY.getUser({
+              userId,
+              chatId,
+              telegramData: msg.from,
+            });
             if (!user) return;
 
             const text = msg.text;
@@ -53,10 +62,10 @@ export default class Lobby extends BuildableClass {
                 menuHandler === undefined &&
                 user.currentAction?.onTextReceivedHandler
               ) {
-                user.currentAction?.onTextReceivedHandler({ text });
+                await user.currentAction?.onTextReceivedHandler({ text });
                 return;
               }
-              if (user.handleMenuAction(text)) {
+              if (await user.handleMenuAction(text)) {
                 return;
               } else {
               }
@@ -92,21 +101,21 @@ export default class Lobby extends BuildableClass {
 
             const user = await LOBBY.getUser({ userId, chatId });
 
-            const action = msg.data.split("__");
+            const action = fromCBD(msg.data);
             const actionFunc =
               user.currentAction?.[action[0]] || user[action[0]];
 
             if (actionFunc) {
               // if (user.currentAction?.[action[0]] && !action.includes("forceActionCall")) {
               if (user.currentAction?.[action[0]]) {
-                if (await user.lastMsgCheck({ msgId })) {
+                if (await user.checkLastMsg({ msgId })) {
                   await actionFunc.call(user.currentAction, {
                     msgId,
-                    data: action,
+                    data: action.slice(1),
                   });
                 }
               } else {
-                await actionFunc.call(user, { msgId, data: action });
+                await actionFunc.call(user, { msgId, data: action.slice(1) });
               }
             } else {
               user.sendSystemErrorMsg({
@@ -126,13 +135,13 @@ export default class Lobby extends BuildableClass {
   //   const bot = await Bot.build();
   //   return bot;
   // }
-  async getUser({ userId, chatId, userData, telegramData, fake }) {
+  async getUser({ userId, chatId, telegramData, fake }) {
     if (!userId) {
       throw new Error("userId not found");
     } else {
       if (this.userList[userId]) return this.userList[userId];
       if (!chatId) throw new Error("chatId not found");
-      const user = await User.build({ userId, userData, telegramData });
+      const user = await User.build({ userId, chatId, telegramData });
       this.userList[userId] = user;
       this.userList[userId].currentChat = chatId;
       if (fake) this.fakeChatList[this.userList[userId].currentChat] = true;

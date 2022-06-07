@@ -1,4 +1,5 @@
 import { Event } from "../Base.class.js";
+import { toCBD } from "../Lobby.class.js";
 
 export default class CheckList extends Event {
   answers = {};
@@ -10,47 +11,43 @@ export default class CheckList extends Event {
     return new CheckList({ parent: user, createdFromBuilder: true });
   }
   async start() {
-    await BOT.sendMessage(this.checkListMsgWrapper(), {
-      lastMsgCheckErrorText: undefined, // тут можно написать кастомный текст
-    });
+    await BOT.sendMessage(this.checkListMsgWrapper(), true);
   }
   async help() {
     const user = this.getParent();
-    await BOT.sendMessage({
-      chatId: user.currentChat,
-      text: "Последовательно отвечайте на вопросы. Ссылка на последний вопрос прикреплена к этому сообщению.",
-      replyId: user.lastMsg?.id,
-    });
+    await BOT.sendMessage(
+      user.simpleMsgWrapper({
+        text: "Последовательно отвечайте на вопросы. Ссылка на последний вопрос прикреплена к этому сообщению.",
+        replyId: user.lastMsg?.id,
+      })
+    );
   }
   setSteps(steps) {
     this.steps = steps;
   }
-  setFinalAction(action){
+  setFinalAction(action) {
     this.finalAction = action;
   }
   saveAnswerCB(obj, ...params) {
-    obj.callback_data = ["saveAnswer", obj.code].concat(params).join("__");
+    obj.callback_data = toCBD("saveAnswer", obj.code, ...params); // не тестировал
     return obj;
   }
   checkListMsgWrapper({ msgId } = {}) {
     const step = this.steps[this.currentStep];
     if (step) {
       this.waitForText = step.waitForText;
-      const user = this.getParent();
-      return {
-        userId: user.id,
-        chatId: user.currentChat,
+      return this.getParent().simpleMsgWrapper({
         msgId,
         text: step.text,
         inlineKeyboard: step.inlineKeyboard,
-      };
+      });
     } else {
       return {};
     }
   }
   async saveAnswer({ msgId, data = [] } = {}) {
     const user = this.getParent();
-    if (!(await user.lastMsgCheck({ msgId }))) return;
+    if (!(await user.checkLastMsg({ msgId }))) return;
 
     const [actionName, answerCode, custom] = data;
     const answers = this.answers;
@@ -104,11 +101,9 @@ export default class CheckList extends Event {
 
     const step = this.steps[this.currentStep];
     if (step) {
-      await BOT.sendMessage(this.checkListMsgWrapper(), {
-        lastMsgCheckErrorText: undefined, // тут можно написать кастомный текст
-      });
+      await BOT.sendMessage(this.checkListMsgWrapper(), true);
     } else {
-      if(this.finalAction) await this.finalAction();
+      if (this.finalAction) await this.finalAction();
     }
   }
   async saveText({ text } = {}) {

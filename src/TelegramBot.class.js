@@ -64,9 +64,7 @@ export default class TelegramBot extends BuildableClass {
       console.error(`!!! TelegramAPI ${method} error`);
       const user = await LOBBY.getUser({ userId, chatId });
       await user.sendSystemErrorMsg({ err });
-      delete err.code;
-      delete err.response;
-      new errorCatcher(err, false);
+      new errorCatcher(err, true);
       return false;
     };
   }
@@ -116,11 +114,7 @@ export default class TelegramBot extends BuildableClass {
 
       if (saveMsgConfig) {
         const user = await LOBBY.getUser({ userId, chatId });
-        user.lastMsg = {
-          id: msg.message_id,
-          text,
-          ...saveMsgConfig,
-        };
+        user.setLastMsg({msg, text, config: saveMsgConfig});
       }
       return msg;
     }
@@ -145,7 +139,7 @@ export default class TelegramBot extends BuildableClass {
         );
     }
   }
-  async deleteMessage({ chatId, msgId } = {}) {
+  async deleteMessage({ userId, chatId, msgId } = {}) {
     if (LOBBY.fakeChatList[chatId]) {
       console.log("deleteMessage", { chatId, msgId });
       return { message_id: this.#message_id };
@@ -155,7 +149,7 @@ export default class TelegramBot extends BuildableClass {
         .catch(this.errorHandler({ userId, chatId, method: "deleteMessage" }));
     }
   }
-  async pinChatMessage({ chatId, msgId } = {}) {
+  async pinChatMessage({ userId, chatId, msgId } = {}) {
     if (LOBBY.fakeChatList[chatId]) {
       console.log("pinChatMessage", { chatId, msgId });
       return { message_id: this.#message_id };
@@ -165,7 +159,7 @@ export default class TelegramBot extends BuildableClass {
         .catch(this.errorHandler({ userId, chatId, method: "pinChatMessage" }));
     }
   }
-  async answerInlineQuery({ queryId, results } = {}) {
+  async answerInlineQuery({ userId, chatId, queryId, results } = {}) {
     if (LOBBY.fakeChatList[chatId]) {
       console.log("answerInlineQuery", { queryId, results });
       return { message_id: this.#message_id };
@@ -178,7 +172,7 @@ export default class TelegramBot extends BuildableClass {
     }
   }
 
-  async sendLocation({ chatId, latitude, longitude } = {}) {
+  async sendLocation({ userId, chatId, latitude, longitude } = {}) {
     if (LOBBY.fakeChatList[chatId]) {
       console.log("sendLocation", { chatId, latitude, longitude });
       return { message_id: this.#message_id };

@@ -8,9 +8,7 @@ export default class Broadcast extends Event {
     return new Broadcast({ parent: user, createdFromBuilder: true });
   }
   async start() {
-    await BOT.sendMessage(this.startMsgWrapper(), {
-      lastMsgCheckErrorText: undefined, // тут можно написать кастомный текст
-    });
+    await BOT.sendMessage(this.startMsgWrapper(), true);
   }
   startMsgWrapper() {
     const user = this.getParent();
@@ -26,36 +24,38 @@ export default class Broadcast extends Event {
       ];
     }
     this.onTextReceivedHandler = this.saveText;
-    return {
-      userId: user.id,
-      chatId: user.currentChat,
+    return user.simpleMsgWrapper({
       msgId: user.lastMsg?.id,
       text,
       inlineKeyboard,
-    };
+    });
   }
   async saveText({ text } = {}) {
     this.broadcastText = text;
     await BOT.editMessageText(this.startMsgWrapper());
   }
-  async edit({ text } = {}) {
+  async edit() {
     // не акутально, так как this.onTextReceivedHandler не сбрасывается
     this.onTextReceivedHandler = this.saveText;
   }
-  async send({ text } = {}) {
+  async send() {
     const queryData = await DB.query(
       `
                 SELECT u.id
                 FROM users u
             `,
       []
-    );
+    ).catch(async (err) => {
+      this.getParent().sendSystemErrorMsg({ err });
+      throw new Error(err);
+    });
     console.log(
       "queryData.rows=",
       queryData.rows,
       "broadcastText=",
       this.broadcastText
     );
+    //queryData.rows = [{id:267280060}];
     for (const row of queryData.rows) {
       await BOT.sendMessage({
         chatId: row.id,
