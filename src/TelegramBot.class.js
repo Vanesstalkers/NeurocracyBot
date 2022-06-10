@@ -111,13 +111,12 @@ export default class TelegramBot extends BuildableClass {
       msg = await this.#api
         .sendMessage(chatId, text, options)
         .catch(this.errorHandler({ userId, chatId, method: "sendMessage" }));
-
-      if (saveMsgConfig) {
-        const user = await LOBBY.getUser({ userId, chatId });
-        user.setLastMsg({msg, text, config: saveMsgConfig});
-      }
-      return msg;
     }
+    if (saveMsgConfig) {
+      const user = await LOBBY.getUser({ userId, chatId });
+      user.setLastMsg({ msg, text, config: saveMsgConfig });
+    }
+    return msg;
   }
   async editMessageText({ userId, chatId, msgId, text, inlineKeyboard } = {}) {
     const options = { parse_mode: "HTML" };

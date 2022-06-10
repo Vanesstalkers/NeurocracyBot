@@ -4,7 +4,7 @@ import User from "./User.class.js";
 import botCommandsLST from "./lst/botCommands.js";
 
 export function toCBD() {
-  return [...arguments].join("__");
+  return { callback_data: [...arguments].join("__") };
 }
 export function fromCBD(callback_data) {
   return callback_data.split("__");
@@ -28,7 +28,7 @@ export default class Lobby extends BuildableClass {
         Object.entries(botCommandsLST).filter(([key, command]) => command.admin)
       ),
       handlerList: {
-        message: async function (msg) {
+        message: async function (msg, callback) {
           try {
             //console.log("message", msg);
 
@@ -87,8 +87,9 @@ export default class Lobby extends BuildableClass {
           } catch (err) {
             new errorCatcher(err);
           }
+          if (typeof callback === "function") callback(); // для testApi
         },
-        callback_query: async function (msg) {
+        callback_query: async function (msg, callback) {
           try {
             //console.log("callback_query", msg);
 
@@ -126,6 +127,7 @@ export default class Lobby extends BuildableClass {
           } catch (err) {
             new errorCatcher(err);
           }
+          if (typeof callback === "function") callback(); // для testApi
         },
       },
     });

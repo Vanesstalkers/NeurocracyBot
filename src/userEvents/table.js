@@ -70,6 +70,9 @@ export default class Table extends Event {
     return this.itemKeyboardBuilder({ code, tableItem, customAttributes });
   }
   createPaginationMsg({ msgId } = {}) {
+    const nullCBD = toCBD("null");
+    const minusCBD = toCBD("togglePagination", "-");
+    const plusCBD = toCBD("togglePagination", "+");
     return this.simpleMsgWrapper({
       msgId,
       text: this.paginationMsgTextBuilder(),
@@ -77,17 +80,11 @@ export default class Table extends Event {
         [
           {
             text: this.pagination.btnLeft,
-            callback_data:
-              this.pagination.btnLeft === "-"
-                ? toCBD("null")
-                : toCBD("togglePagination", "-"),
+            ...(this.pagination.btnLeft === "-" ? nullCBD : minusCBD),
           },
           {
             text: this.pagination.btnRight,
-            callback_data:
-              this.pagination.btnRight === "-"
-                ? toCBD("null")
-                : toCBD("togglePagination", "+"),
+            ...(this.pagination.btnRight === "-" ? nullCBD : plusCBD),
           },
         ],
       ],

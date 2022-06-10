@@ -3,7 +3,6 @@ import { toCBD } from "../Lobby.class.js";
 import skillLST from "../lst/skill.js";
 
 export default class Question extends Event {
-  #errorIdx = 0;
   constructor() {
     super(...arguments);
   }
@@ -45,13 +44,10 @@ export default class Question extends Event {
       "Выберите от 2 до 4 сфер компетенций из предложенного списка и задайте свой вопрос, относящийся одновременно ко всем выбранным навыкам (<u>отправьте его как обычное сообщение в чат</u>).";
     let inlineKeyboard = [
       [
-        {
-          text: "Заменить список",
-          callback_data: toCBD("changeSkills"),
-        },
+        { text: "Заменить список", ...toCBD("changeSkills") },
         {
           text: `ℹ️ ${hideInfo ? "скрыть" : "Подсказка"}`,
-          callback_data: toCBD("showSkillsDecription"),
+          ...toCBD("showSkillsDecription"),
         },
       ],
     ].concat(this.keyboardFromSkills());
@@ -77,14 +73,6 @@ export default class Question extends Event {
       inlineKeyboard,
     });
   }
-  stringifyError({ error }) {
-    // избавляет от ошибки "message is not modified" + визуализирует для полльзователя, что ошибка осталась
-    return (
-      (this.#errorIdx++ % 2 > 0 ? "❗❗❗" : "‼️‼️‼️") +
-      " <b>Ошибка</b>: " +
-      error
-    );
-  }
   async save({ text }) {
     const checkedSkillList = this.getCheckedSkills();
     const minQuestionLength = 10;
@@ -103,11 +91,11 @@ export default class Question extends Event {
     } else {
       await DB.query(
         `
-                    INSERT INTO question
-                        (user_id, data, add_time, msg_id, chat_id)
-                    VALUES
-                        ($1, $2, NOW()::timestamp, $3, $4)
-                    `,
+          INSERT INTO question
+              (user_id, data, add_time, msg_id, chat_id)
+          VALUES
+              ($1, $2, NOW()::timestamp, $3, $4)
+        `,
         [
           user.id,
           { text, skillList: this.skillList },
@@ -143,15 +131,12 @@ export default class Question extends Event {
   keyboardFromSkills() {
     return this.skillList.map((skill) => {
       const buttonList = [
-        {
-          text: skill.label,
-          callback_data: toCBD("updateSkills", skill.code, "pick"),
-        },
+        { text: skill.label, ...toCBD("updateSkills", skill.code, "pick") },
       ];
       if (skill.checked)
         buttonList.push({
           text: "отменить выбор",
-          callback_data: toCBD("updateSkills", skill.code, "delete"),
+          ...toCBD("updateSkills", skill.code, "delete"),
         });
       return buttonList;
     });
@@ -162,14 +147,8 @@ export default class Question extends Event {
         text: "ℹ️ Вы можете заменить предложенные сферы компетенций, однако платформа расценит это как недостаток соответствующих знаний и навыков, из-за чего несколько понизит оценки ваших характеристик.\n<b>Вы подтверждаете замену списка сфер компетенций для вопроса?</b>",
         inlineKeyboard: [
           [
-            {
-              text: "Подтвердить замену",
-              callback_data: toCBD("acceptChangeSkills"),
-            },
-            {
-              text: "Отменить замену",
-              callback_data: toCBD("cancelChangeSkills"),
-            },
+            { text: "Подтвердить замену", ...toCBD("acceptChangeSkills") },
+            { text: "Отменить замену", ...toCBD("cancelChangeSkills") },
           ],
         ],
       }),

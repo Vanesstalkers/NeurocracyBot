@@ -9,6 +9,7 @@ export class BuildableClass {
 
 export class Event extends BuildableClass {
   #parent = null;
+  #errorIdx = 0;
   constructor({ parent }) {
     super(...arguments);
     this.#parent = parent;
@@ -18,6 +19,14 @@ export class Event extends BuildableClass {
   }
   getParent() {
     return this.#parent;
+  }
+  stringifyError({ error }) {
+    // избавляет от ошибки "message is not modified" + визуализирует для полльзователя, что ошибка осталась
+    return (
+      (this.#errorIdx++ % 2 > 0 ? "❗❗❗" : "‼️‼️‼️") +
+      " <b>Ошибка</b>: " +
+      error
+    );
   }
 }
 

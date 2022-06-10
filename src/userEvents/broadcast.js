@@ -41,9 +41,9 @@ export default class Broadcast extends Event {
   async send() {
     const queryData = await DB.query(
       `
-                SELECT u.id
-                FROM users u
-            `,
+        SELECT u.id
+        FROM users u
+      `,
       []
     ).catch(async (err) => {
       this.getParent().sendSystemErrorMsg({ err });

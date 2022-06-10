@@ -29,7 +29,7 @@ export default class CheckList extends Event {
     this.finalAction = action;
   }
   saveAnswerCB(obj, ...params) {
-    obj.callback_data = toCBD("saveAnswer", obj.code, ...params); // не тестировал
+    Object.assign(obj, toCBD("saveAnswer", obj.code, ...params)); // не тестировал
     return obj;
   }
   checkListMsgWrapper({ msgId } = {}) {

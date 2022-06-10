@@ -2,6 +2,7 @@ import { BuildableClass } from "./Base.class.js";
 //import Broadcast from "./userEvents/broadcast.js";
 import Table from "./userEvents/table.js";
 import Question from "./userEvents/question.js";
+import Rate from "./userEvents/rate.js";
 import { toCBD } from "./Lobby.class.js";
 import skillLST from "./lst/skill.js";
 import helpQuestionLST from "./lst/helpQuestion.js";
@@ -9,6 +10,7 @@ import { numberToEmoji } from "./utils.js";
 
 export default class User extends BuildableClass {
   id;
+  config = { showSkillsInApp: false };
   #textHandlerList = {};
   #menuReady = false;
   constructor(userData = {}) {
@@ -27,12 +29,12 @@ export default class User extends BuildableClass {
 
     const queryData = await DB.query(
       `
-                SELECT u.id, u.data, u.telegram, count(a) alert_count
-                FROM users u
-                  LEFT JOIN user_alert a ON a.user_id = u.id AND a.delete_time IS NULL
-                WHERE u.id = $1
-                GROUP BY u.id
-            `,
+        SELECT u.id, u.data, u.telegram, count(a) alert_count
+        FROM users u
+          LEFT JOIN user_alert a ON a.user_id = u.id AND a.delete_time IS NULL
+        WHERE u.id = $1
+        GROUP BY u.id
+      `,
       [userId]
     ).catch(errorHandler);
     const user = queryData.rows[0] || {};
@@ -41,20 +43,20 @@ export default class User extends BuildableClass {
       user.telegram = telegramData;
       const queryResult = await DB.query(
         `
-                    INSERT INTO users (id, data, telegram, last_login)
-                    VALUES ($1, $2, $3, NOW()::timestamp)
-                    RETURNING id
-                `,
+          INSERT INTO users (id, data, telegram, last_login)
+          VALUES ($1, $2, $3, NOW()::timestamp)
+          RETURNING id
+        `,
         [userId, user.data, user.telegram]
       ).catch(errorHandler);
       user.id = queryResult.rows[0].id;
     } else {
       await DB.query(
         `
-                    UPDATE users
-                    SET telegram = $1, last_login = NOW()::timestamp
-                    WHERE id = $2
-                `,
+          UPDATE users
+          SET telegram = $1, last_login = NOW()::timestamp
+          WHERE id = $2
+        `,
         [telegramData, userId]
       ).catch(errorHandler);
     }
@@ -74,11 +76,18 @@ export default class User extends BuildableClass {
     if (config.saveAsLastConfirmMsg) {
       this.lastMsg.confirmMsgId = msg.message_id;
     } else {
-      this.lastMsg = {
-        id: msg.message_id,
-        text,
-        ...config,
-      };
+      if (config.childMsg) {
+        if (this.lastMsg) {
+          if (!this.lastMsg.childMsgIdList) this.lastMsg.childMsgIdList = [];
+          this.lastMsg.childMsgIdList.push(msg.message_id);
+        }
+      } else {
+        this.lastMsg = {
+          id: msg.message_id,
+          text,
+          ...config,
+        };
+      }
     }
   }
   async checkLastMsg({ msgId } = {}) {
@@ -88,7 +97,7 @@ export default class User extends BuildableClass {
       this.lastMsg?.id &&
       this.lastMsg?.id !== msgId &&
       msgId !== this.lastMsg?.confirmMsgId &&
-      !this.lastMsg?.childMsgIdList.includes(msgId);
+      !this.lastMsg?.childMsgIdList?.includes(msgId);
 
     if (activeEvent || oldEvent) {
       await this.sendSimpleError({
@@ -117,7 +126,11 @@ export default class User extends BuildableClass {
     );
   }
   async sendSystemErrorMsg({ err } = {}) {
-    User.sendSystemErrorMsg({ err, userId: this.id, chatId: this.currentChat });
+    await User.sendSystemErrorMsg({
+      err,
+      userId: this.id,
+      chatId: this.currentChat,
+    });
   }
   static async sendSystemErrorMsg({ err, userId, chatId } = {}) {
     const sorryText = `У нас тут что-то сломалось, но программисты уже все чинят. Можете обновить меня командой /start и попробовать все заново.`;
@@ -185,17 +198,26 @@ export default class User extends BuildableClass {
         this.menuItem({
           text: "🏆 Оценка",
           actionHandler: async function () {
-            console.log("🏆 Оценка");
+            await this.newRateEvent();
           },
         }),
       ],
       [
-        this.menuItem({
-          text: "🎓 Навыки",
-          web_app: {
-            url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=skillList`,
-          },
-        }),
+        this.menuItem(
+          this.config.showSkillsInApp
+            ? {
+                text: "🎓 Навыки",
+                web_app: {
+                  url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=skillList`,
+                },
+              }
+            : {
+                text: "🎓 Навыки",
+                actionHandler: async function () {
+                  await this.showSkills();
+                },
+              }
+        ),
         this.menuItem({
           text: this.alertCount > 0 ? `🔔 (${this.alertCount})` : "🔕",
           web_app: {
@@ -243,16 +265,11 @@ export default class User extends BuildableClass {
 
     const inlineKeyboard = Object.entries(helpQuestionLST).map(
       ([code, lst]) => {
-        return [
-          { text: `ℹ️ ${lst.text}?`, callback_data: toCBD("helpStart", code) },
-        ];
+        return [{ text: `ℹ️ ${lst.text}?`, ...toCBD("helpStart", code) }];
       }
     );
     inlineKeyboard.push([
-      {
-        text: "✔️ Мне все понятно, начинаем!",
-        callback_data: toCBD("acceptConfig"),
-      },
+      { text: "✔️ Мне все понятно, начинаем!", ...toCBD("acceptConfig") },
     ]);
     return this.simpleMsgWrapper({ msgId, text, inlineKeyboard });
   }
@@ -271,18 +288,14 @@ export default class User extends BuildableClass {
           text: "Отлично, для вас есть первое задание! Необходимо указать ваши сильные стороны в общем списке компетенций.",
           inlineKeyboard: [
             [
-              {
-                text: "Распределить компетенции",
-                callback_data: toCBD("showSkills"),
-              },
-            ],
-            [
-              {
-                text: "🎓 Распределить навыки",
-                web_app: {
-                  url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=skillList`,
-                },
-              },
+              this.config.showSkillsInApp
+                ? {
+                    text: "🎓 Распределить навыки",
+                    web_app: {
+                      url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=skillList`,
+                    },
+                  }
+                : { text: "🎓 Распределить навыки", ...toCBD("showSkills") },
             ],
           ],
         })
@@ -303,7 +316,7 @@ export default class User extends BuildableClass {
   async newRateEvent() {
     if (await this.checkLastMsg()) {
       this.resetCurrentAction();
-      // this.currentAction = await Rate.build({ parent: this });
+      this.currentAction = await Rate.build({ parent: this });
     }
   }
 
@@ -320,17 +333,11 @@ export default class User extends BuildableClass {
     const inlineKeyboard = [];
     if (btnQ)
       inlineKeyboard.push([
-        {
-          text: "Задать новый вопрос",
-          callback_data: toCBD("newQuestionEvent"),
-        },
+        { text: "Задать новый вопрос", ...toCBD("newQuestionEvent") },
       ]);
     if (btnA)
       inlineKeyboard.push([
-        {
-          text: "Оценить чужой вопрос",
-          callback_data: toCBD("newRateEvent"),
-        },
+        { text: "Оценить чужой вопрос", ...toCBD("newRateEvent") },
       ]);
     await BOT.sendMessage(
       this.simpleMsgWrapper({
@@ -349,9 +356,13 @@ export default class User extends BuildableClass {
     table.setItemKeyboardBuilder(
       function ({ tableItem, code: skillCode, customAttributes }) {
         const skill = this.skillList[skillCode] || {};
-        let rateStr = numberToEmoji((skill.value || 0).toFixed(1).toString());
+        let rateStr = numberToEmoji(
+          parseFloat(skill.value || 0)
+            .toFixed(1)
+            .toString()
+        );
         let updateString = skill.update
-          ? skill.update.toFixed(1).toString()
+          ? parseFloat(skill.update).toFixed(1).toString()
           : " ";
         if (updateString[0] != "-" && updateString[0] != " ")
           updateString = "+" + updateString;
@@ -361,40 +372,22 @@ export default class User extends BuildableClass {
 
         if (this.needConfigSkills.value || customAttributes.startRateUpdated) {
           result = [
-            { text: rateStr, callback_data: toCBD("null") },
-            { text: updateString, callback_data: toCBD("null") },
+            { text: rateStr, ...toCBD("null") },
+            { text: updateString, ...toCBD("null") },
             (skill.value || 0) < 10
-              ? {
-                  text: "➕",
-                  callback_data: toCBD("setStartRate", skillCode, "+"),
-                }
-              : {
-                  text: "➖",
-                  callback_data: toCBD("setStartRate", skillCode, "-"),
-                },
+              ? { text: "➕", ...toCBD("setStartRate", skillCode, "+") }
+              : { text: "➖", ...toCBD("setStartRate", skillCode, "-") },
             tableItem.showInfo
-              ? {
-                  text: "🚫",
-                  callback_data: toCBD("helpItem", skillCode, "hide"),
-                }
-              : {
-                  text: "ℹ️",
-                  callback_data: toCBD("helpItem", skillCode, "show"),
-                },
+              ? { text: "🚫", ...toCBD("helpItem", skillCode, "hide") }
+              : { text: "ℹ️", ...toCBD("helpItem", skillCode, "show") },
           ];
         } else {
           result = [
-            { text: rateStr, callback_data: toCBD("null") },
-            { text: updateString, callback_data: toCBD("null") },
+            { text: rateStr, ...toCBD("null") },
+            { text: updateString, ...toCBD("null") },
             tableItem.showInfo
-              ? {
-                  text: "🚫",
-                  callback_data: toCBD("helpItem", skillCode, "hide"),
-                }
-              : {
-                  text: "ℹ️",
-                  callback_data: toCBD("helpItem", skillCode, "show"),
-                },
+              ? { text: "🚫", ...toCBD("helpItem", skillCode, "hide") }
+              : { text: "ℹ️", ...toCBD("helpItem", skillCode, "show") },
           ];
         }
         return [result];
@@ -413,48 +406,75 @@ export default class User extends BuildableClass {
         if (!this.needConfigSkills.value) return;
         if (!this.skillList[skillCode])
           this.skillList[skillCode] = { value: 0, update: 0 };
+
+        let skillObj = {
+          value: parseFloat(this.skillList[skillCode].value),
+          update: parseFloat(this.skillList[skillCode].update),
+        };
+        let needConfigSkillsValue = this.needConfigSkills.value;
         if (type === "+") {
-          this.skillList[skillCode].value = parseFloat((parseFloat(this.skillList[skillCode].value) + 5).toFixed(1));
-          this.skillList[skillCode].update = parseFloat((parseFloat(this.skillList[skillCode].update) + 5).toFixed(1));
-          this.needConfigSkills.value -= 5;
+          skillObj.value = parseFloat((skillObj.value + 5).toFixed(1));
+          skillObj.update = parseFloat((skillObj.update + 5).toFixed(1));
+          needConfigSkillsValue -= 5;
         } else {
           if (this.skillList[skillCode].update) {
-            this.skillList[skillCode].value = parseFloat((parseFloat(this.skillList[skillCode].value) - 5).toFixed(1));
-            this.skillList[skillCode].update = parseFloat((parseFloat(this.skillList[skillCode].update) - 5).toFixed(1));
-            this.needConfigSkills.value += 5;
+            skillObj.value = parseFloat((skillObj.value - 5).toFixed(1));
+            skillObj.update = parseFloat((skillObj.update - 5).toFixed(1));
+            needConfigSkillsValue += 5;
           }
         }
-        await DB.query(
-          `
-            UPDATE users
-            SET data = jsonb_set(data, '{skillList, ${skillCode}}', $1, true)
-            WHERE id = $2;
-        `,
-          [this.skillList[skillCode], this.id]
-        );
-        await DB.query(
-          `
-            UPDATE users
-            SET data = jsonb_set(data, '{needConfigSkills, value}', $1, true)
-            WHERE id = $2;
-        `,
-          [this.needConfigSkills.value, this.id]
-        );
-        await BOT.editMessageText(
-          this.currentAction.createItemMsg({
-            msgId,
-            code: skillCode,
-            customAttributes: {
-              startRateUpdated: true,
-            },
-          })
-        );
-        await BOT.editMessageText(
-          this.currentAction.createPaginationMsg({ msgId: this.lastMsg?.id })
-        );
+        try {
+          if (
+            await this.updateSkillList({
+              skillList: { ...this.skillList, [skillCode]: skillObj },
+              needConfigSkillsValue,
+            }).catch(async function (err) {
+              throw new Error(err);
+            })
+          ) {
+            await BOT.editMessageText(
+              this.currentAction.createItemMsg({
+                msgId,
+                code: skillCode,
+                customAttributes: {
+                  startRateUpdated: true,
+                },
+              })
+            );
+            await BOT.editMessageText(
+              this.currentAction.createPaginationMsg({
+                msgId: this.lastMsg?.id,
+              })
+            );
+          }
+        } catch (err) {
+          await this.sendSystemErrorMsg({ err });
+          throw new Error(err);
+        }
       }.bind(this)
     );
     table.start();
+  }
+  async updateSkillList({ skillList, needConfigSkillsValue } = {}) {
+    if (
+      await DB.query({
+        text: `
+          UPDATE users
+          SET data = data || jsonb_build_object(
+            'skillList', $1::jsonb, 
+            'needConfigSkills', data->'needConfigSkills' || $2::jsonb
+          )
+          WHERE id = $3;
+        `,
+        values: [skillList, { value: needConfigSkillsValue }, this.id],
+      }).catch(async (err) => {
+        throw new Error(err);
+      })
+    ) {
+      this.skillList = skillList;
+      this.needConfigSkills.value = needConfigSkillsValue;
+    }
+    return true;
   }
   // async newBroadcast() {
   //   // if (await this.lastMsgCheck()) {
