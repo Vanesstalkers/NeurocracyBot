@@ -1,14 +1,15 @@
 import { Event } from "../Base.class.js";
 import { toCBD } from "../Lobby.class.js";
 import skillLST from "../lst/skill.js";
+import { getRewardArray } from "../utils.js";
 
 export default class Question extends Event {
   constructor() {
     super(...arguments);
   }
-  static async build({ parent: user } = {}) {
+  static async build({ parent: user, customMode } = {}) {
     const question = new Question({ parent: user, createdFromBuilder: true });
-    await question.init();
+    await question.init({ customMode });
     return question;
   }
   async help() {
@@ -18,26 +19,33 @@ export default class Question extends Event {
       })
     );
   }
-  async init() {
-    this.skillList = [];
+  async init({ customMode: { mode, skillList = [] } = {} } = {}) {
     this.onTextReceivedHandler = this.save;
 
-    const skillList = Object.keys(skillLST);
-    for (let j = 0; j < 4; j++) {
-      const skillCode = skillList.splice(
-        Math.floor(Math.random() * skillList.length),
-        1
-      )[0];
-      this.skillList.push({
-        code: skillCode,
-        label: skillLST[skillCode].label,
-        checked: false,
-      });
+    if (mode === "static") {
+      this.skillList = skillList;
+      return;
     }
 
+    this.skillList = [];
+    if (!skillList) {
+      const skillList = Object.keys(skillLST);
+      for (let j = 0; j < 4; j++) {
+        const skillCode = skillList.splice(
+          Math.floor(Math.random() * skillList.length),
+          1
+        )[0];
+        this.skillList.push({
+          code: skillCode,
+          label: skillLST[skillCode].label,
+          checked: false,
+        });
+      }
+    }
     await BOT.sendMessage(this.createMsg(), true);
   }
   createMsg({ error = null, info = null, reward = null } = {}) {
+    const user = this.getParent();
     const hideInfo = this.info && !this.info.hide;
 
     let text =
@@ -52,21 +60,24 @@ export default class Question extends Event {
       ],
     ].concat(this.keyboardFromSkills());
 
-    // if (reward) {
-    //   const rewardArray = getRewardArray({ rewardList: reward.data }) || [
-    //     "<i>ошибка отображения награды</i>",
-    //   ];
-    //   // if(rewardArray.length){
-    //   text = reward.text + "\n" + rewardArray.join("\n") + "\n\n" + text;
-    //   // }
-    //   inlineKeyboard = [];
-    // }
+    if (reward) {
+      const rewardArray = getRewardArray({ rewardList: reward.data }) || [
+        "<i>ошибка отображения награды</i>",
+      ];
+      text =
+        reward.text +
+        "\n" +
+        rewardArray.join("\n") +
+        "\n\n" +
+        "<b>Задан вопрос:</b> " +
+        user.lastMsg.text;
+      inlineKeyboard = [];
+    }
 
     if (hideInfo) text += "\n\n" + this.info.text;
     text += "\n" + this.stringifyCheckedSkills();
     if (error) text += "\n\n" + this.stringifyError({ error });
 
-    const user = this.getParent();
     return user.simpleMsgWrapper({
       msgId: user.lastMsg?.id,
       text,
@@ -193,5 +204,182 @@ export default class Question extends Event {
       };
     }
     await BOT.editMessageText(this.createMsg());
+  }
+
+  static async processRates({ questionId } = {}) {
+    const queryResult = await DB.query({
+      text: `
+        (
+            SELECT
+                'question' as type, q.data, u.id user_id, u.data user_data, q.msg_id, q.chat_id
+            FROM
+                question q
+                LEFT JOIN users u 
+                        ON u.id = q.user_id
+            WHERE q.id = $1
+        ) UNION ALL (
+            SELECT
+            'answer' as type, a.data, u.id user_id, u.data user_data, a.msg_id, a.chat_id
+            FROM
+                question q
+                LEFT JOIN answer a
+                        ON a.question_id = q.id AND a.delete_time IS NULL
+                LEFT JOIN users u
+                        ON u.id = a.user_id
+            WHERE q.id = $1
+        )
+      `,
+      values: [questionId],
+    }).catch(function (err) {
+      throw new Error(err);
+    });
+    const userMap = {};
+    const itemsMappedByUser = {};
+    const skillMap = {};
+    let question;
+
+    for (const item of queryResult.rows) {
+      if (!userMap[item.user_id]) {
+        userMap[item.user_id] = {
+          reward: {},
+          skillList: item.user_data.skillList,
+        };
+      }
+      if (!itemsMappedByUser[item.user_id]) {
+        itemsMappedByUser[item.user_id] = {
+          type: item.type,
+          msgId: item.msg_id,
+          chatId: item.chat_id,
+          skillList: item.data.skillList || [],
+          text: item.data.text,
+          questionRate: item.data.questionRate,
+        };
+      }
+      if (item.type === "question") question = itemsMappedByUser[item.user_id];
+    }
+    if (!question)
+      throw new Error(`question (questionId=${questionId}) not found`);
+
+    for (const [userId, item] of Object.entries(itemsMappedByUser)) {
+      const user = userMap[userId];
+      for (const skill of item.skillList) {
+        if (!skillMap[skill.code]) {
+          skillMap[skill.code] = [];
+          skillMap[skill.code].skillSum = 0;
+        }
+        skillMap[skill.code].push({
+          userId,
+          skill: parseFloat(user.skillList[skill.code]?.value) || 0,
+          rate: skill.checked,
+        });
+        skillMap[skill.code].skillSum +=
+          parseFloat(user.skillList[skill.code]?.value) || 0;
+      }
+    }
+
+    for (const [skillCode, skillData] of Object.entries(skillMap)) {
+      skillData.rateSum = skillData.reduce(
+        (sum, user) => sum + user.skill * (user.rate ? 1 : -1),
+        0
+      );
+      // тема соответствует вопросу
+      skillData.accepted = skillData.rateSum > 0;
+      // коэффициент расхождения мнений
+      skillData.rateIndex =
+        skillData.skillSum > 0
+          ? Math.abs(skillData.rateSum / skillData.skillSum)
+          : 0;
+
+      for (const user of skillData) {
+        // личный коэффициент пользователя
+        user.rateIndex = {
+          "+": 1 / Math.pow(2, (user.skill - 100) / 10),
+          "-": 1 / Math.pow(2, -user.skill / 10),
+        };
+        let updateSkill;
+        if (user.rate !== skillData.accepted) {
+          updateSkill =
+            -1 *
+            user.skill *
+            user.rateIndex["-"] *
+            skillData.rateIndex *
+            0.0001;
+        } else {
+          updateSkill =
+            (100 - user.skill) *
+            user.rateIndex["+"] *
+            skillData.rateIndex *
+            0.0001;
+        }
+
+        userMap[user.userId].reward[skillCode] = parseFloat(
+          updateSkill.toFixed(1)
+        );
+      }
+    }
+
+    const query = {
+      text: "",
+    };
+    for (const [userId, userData] of Object.entries(userMap)) {
+      const lobbyUser = await LOBBY.getUser({ userId, chatId: userId });
+      if (lobbyUser) {
+        let updateSkillQuery = [];
+        for (const [code, value] of Object.entries(userData.reward)) {
+          if (!lobbyUser.skillList[code])
+            lobbyUser.skillList[code] = { value: 0.0, update: 0.0 };
+          lobbyUser.skillList[code].value =
+            parseFloat(lobbyUser.skillList[code].value) + value;
+          lobbyUser.skillList[code].update =
+            parseFloat(lobbyUser.skillList[code].update) + value;
+
+          updateSkillQuery.push(`
+            '${code}', COALESCE(data->'skillList'->'${code}', jsonb '{}') ||
+            jsonb_build_object(
+                'value', ${lobbyUser.skillList[code].value}::float4,
+                'update', ${lobbyUser.skillList[code].update}::float4
+            )
+          `);
+        }
+
+        const updateSkillQuery_stringified = updateSkillQuery.join(",");
+        query.text += `
+          UPDATE users
+          SET data = jsonb_set(data, '{skillList}', data->'skillList' || jsonb_build_object(${updateSkillQuery_stringified}), true)
+          WHERE id = ${userId};
+        `;
+
+        const rewardItemData = itemsMappedByUser[userId];
+        const alertData = {
+          source_type: rewardItemData.type,
+          source_id: rewardItemData.msgId,
+          reward: userData.reward,
+        };
+
+        const alertData_stringified = JSON.stringify(alertData);
+        query.text += `
+          INSERT INTO user_alert (user_id, data, add_time)
+          VALUES (${userId}, jsonb '${alertData_stringified}', NOW()::timestamp);
+        `;
+
+        lobbyUser.giveReward({
+          msgId: rewardItemData.msgId,
+          chatId: rewardItemData.chatId,
+          rewardData: userData.reward,
+          msgData: {
+            type: rewardItemData.type,
+            text: question.text,
+            skillList: rewardItemData.skillList,
+            questionRate: rewardItemData.questionRate || undefined,
+          },
+        });
+      }
+    }
+
+    //console.log({ skillMap, userMap, query });
+
+    await DB.query(query).catch(function (err) {
+      throw new Error(err);
+    });
   }
 }

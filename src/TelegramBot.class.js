@@ -62,8 +62,10 @@ export default class TelegramBot extends BuildableClass {
   errorHandler({ userId, chatId, method }) {
     return async (err) => {
       console.error(`!!! TelegramAPI ${method} error`);
-      const user = await LOBBY.getUser({ userId, chatId });
-      await user.sendSystemErrorMsg({ err });
+      if (err.message !== "ETELEGRAM: 400 Bad Request: chat not found") {
+        const user = await LOBBY.getUser({ userId, chatId });
+        await user.sendSystemErrorMsg({ err });
+      }
       new errorCatcher(err, true);
       return false;
     };
@@ -114,7 +116,7 @@ export default class TelegramBot extends BuildableClass {
     }
     if (saveMsgConfig) {
       const user = await LOBBY.getUser({ userId, chatId });
-      user.setLastMsg({ msg, text, config: saveMsgConfig });
+      user.setLastMsg({ id: msg.message_id, text, config: saveMsgConfig });
     }
     return msg;
   }
@@ -148,13 +150,13 @@ export default class TelegramBot extends BuildableClass {
         .catch(this.errorHandler({ userId, chatId, method: "deleteMessage" }));
     }
   }
-  async pinChatMessage({ userId, chatId, msgId } = {}) {
+  async pinChatMessage({ userId, chatId, msgId, disableNotify } = {}) {
     if (LOBBY.fakeChatList[chatId]) {
       console.log("pinChatMessage", { chatId, msgId });
       return { message_id: this.#message_id };
     } else {
       return await this.#api
-        .pinChatMessage(chatId, msgId)
+        .pinChatMessage(chatId, msgId, { disable_notification: disableNotify })
         .catch(this.errorHandler({ userId, chatId, method: "pinChatMessage" }));
     }
   }

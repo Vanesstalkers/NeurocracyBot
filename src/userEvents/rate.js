@@ -1,17 +1,19 @@
 import { Event } from "../Base.class.js";
 import { toCBD } from "../Lobby.class.js";
+import Question from "./question.js";
 import skillLST from "../lst/skill.js";
 import rateLST from "../lst/rate.js";
+import { getRewardArray } from "../utils.js";
 
 export default class Rate extends Event {
   static claimCountLimit = 3;
-  config = { stepByStepMode: false };
+  config = { stepByStepMode: true };
   constructor() {
     super(...arguments);
   }
-  static async build({ parent: user } = {}) {
+  static async build({ parent: user, customMode } = {}) {
     const rate = new Rate({ parent: user, createdFromBuilder: true });
-    await rate.init();
+    await rate.init({ customMode });
     return rate;
   }
   async help() {
@@ -21,7 +23,13 @@ export default class Rate extends Event {
       })
     );
   }
-  async init() {
+  async init({ customMode: { mode, skillList = [], questionRate } = {} } = {}) {
+    if (mode === "static") {
+      this.skillList = skillList;
+      this.questionRate = questionRate;
+      return;
+    }
+
     const user = this.getParent();
     this.skillList = [];
     if (this.config.stepByStepMode) this.step = 0;
@@ -56,7 +64,6 @@ export default class Rate extends Event {
       this.skillList.push({
         code: skill.code,
         text: "❓ " + skill.label,
-        rate: false,
       });
     }
 
@@ -104,15 +111,13 @@ export default class Rate extends Event {
       ],
     ];
 
-    // if (reward) {
-    //   const rewardArray = getRewardArray({ rewardList: reward.data }) || [
-    //     "<i>ошибка отображения награды</i>",
-    //   ];
-    //   // if(rewardArray.length){
-    //   text = reward.text + "\n" + rewardArray.join("\n") + "\n\n" + text;
-    //   // }
-    //   inlineKeyboard = [];
-    // }
+    if (reward) {
+      const rewardArray = getRewardArray({ rewardList: reward.data }) || [
+        "<i>ошибка отображения награды</i>",
+      ];
+      text = reward.text + "\n" + rewardArray.join("\n") + "\n\n" + text;
+      inlineKeyboard = [];
+    }
 
     text +=
       "\n\n<b>Оценка вопроса</b>: " +
@@ -121,9 +126,9 @@ export default class Rate extends Event {
     const skills = [];
     for (const skill of this.skillList) {
       let label = skillLST[skill.code].label;
-      if (skill.rate == false) {
+      if (skill.checked === undefined) {
         skills.push("❓ " + label);
-      } else if (skill.rate === "+") {
+      } else if (skill.checked) {
         skills.push("✔️ " + label);
       } else {
         skills.push("✖️ <s>" + label + "</s>");
@@ -148,9 +153,9 @@ export default class Rate extends Event {
     const skills = [];
     for (const skill of this.skillList) {
       let label = skillLST[skill.code].label;
-      if (skill.rate == false) {
+      if (skill.checked === undefined) {
         skills.push("❓ " + label);
-      } else if (skill.rate === "+") {
+      } else if (skill.checked) {
         skills.push("✔️ " + label);
       } else {
         skills.push("✖️ <s>" + label + "</s>");
@@ -220,11 +225,12 @@ export default class Rate extends Event {
   async setSkillRate({ data: [skillCode, rate] }) {
     const skill = this.skillList?.find((skill) => skill.code === skillCode);
 
-    if (skill.rate !== rate) skill.rate = rate;
+    const skillCheched = rate === "+";
+    if (skill.checked !== skillCheched) skill.checked = skillCheched;
     else return;
 
     let text = skillLST[skill.code].label;
-    if (rate === "+") {
+    if (skillCheched) {
       text = "✔️ <b>" + text + "</b>";
     } else {
       text = "✖️ <s>" + text + "</s>";
@@ -285,7 +291,7 @@ export default class Rate extends Event {
   async reset() {
     delete this.questionRate;
     for (const skill of this.skillList) {
-      skill.rate = false;
+      delete skill.checked;
     }
     this.step = 0;
     await BOT.editMessageText(
@@ -368,7 +374,7 @@ export default class Rate extends Event {
     let error = false;
     if (
       !this.questionRate ||
-      this.skillList.filter((skill) => skill.rate === false).length
+      this.skillList.filter((skill) => skill.checked === undefined).length
     ) {
       error = `Должны быть выставлены все оценки и определены все сферы.`;
     }
@@ -388,7 +394,7 @@ export default class Rate extends Event {
         values: [
           user.id,
           this.questionId,
-          { rate: this.questionRate, skills: this.skillList },
+          { questionRate: this.questionRate, skillList: this.skillList },
           user.lastMsg?.id,
           user.currentChat,
         ],
@@ -406,7 +412,7 @@ export default class Rate extends Event {
           )
           WHERE id = $1 RETURNING data->>'answerCount' count;
         `,
-        values: [this.rateQuestionId],
+        values: [this.questionId],
       }).catch(async function (err) {
         await user.sendSystemErrorMsg({ err });
         throw new Error(err);
@@ -417,63 +423,7 @@ export default class Rate extends Event {
 
       const answerCount = parseInt(queryResult.rows[0]?.count);
       if (answerCount > 0) {
-        const queryResult = await DB.query({
-          text: `
-            (
-                SELECT
-                    'question' as type, q.data, u.id user_id, u.data user_data, q.msg_id, q.chat_id
-                FROM
-                    question q
-                    LEFT JOIN users u 
-                            ON u.id = q.user_id
-                WHERE q.id = $1
-            ) UNION ALL (
-                SELECT
-                'answer' as type, a.data, u.id user_id, u.data user_data, a.msg_id, a.chat_id
-                FROM
-                    question q
-                    LEFT JOIN answer a
-                            ON a.question_id = q.id AND a.delete_time IS NULL
-                    LEFT JOIN users u
-                            ON u.id = a.user_id
-                WHERE q.id = $1
-            )
-          `,
-          values: [this.questionId],
-        });
-        const questionList = [];
-        const userList = [];
-        const answerList = [];
-
-        for (const item of queryResult.rows) {
-          userList.push({
-            user_id: item.user_id,
-            skillList: item.user_data.skillList,
-          });
-          if (item.type === "question") {
-            questionList.push({
-              user_id: item.user_id,
-              msg_id: item.msg_id,
-              chat_id: item.chat_id,
-              usedSkillList: item.data.usedSkillList || [],
-              text: item.data.text,
-            });
-          } else {
-            answerList.push({
-              user_id: item.user_id,
-              msg_id: item.msg_id,
-              chat_id: item.chat_id,
-              rate: item.data.rate,
-              skills: item.data.skills || [],
-            });
-          }
-        }
-
-        // this.processQuestionRates({
-        //   question: questionList[0],
-        //   answerList,
-        //   userList,
-        // });
+        await Question.processRates({ questionId: this.questionId });
       }
     }
   }

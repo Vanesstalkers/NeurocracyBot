@@ -67,26 +67,22 @@ export default class User extends BuildableClass {
     delete this.lastMsg;
     delete this.currentAction;
   }
-  async setLastMsg({ msg, text, config } = {}) {
+  async setLastMsg({ id, text, config = {} } = {}) {
     if (config === true) {
       config = {
         lastMsgCheckErrorText: undefined, // тут можно написать кастомный текст
       };
     }
     if (config.saveAsLastConfirmMsg) {
-      this.lastMsg.confirmMsgId = msg.message_id;
+      this.lastMsg.confirmMsgId = id;
     } else {
       if (config.childMsg) {
         if (this.lastMsg) {
           if (!this.lastMsg.childMsgIdList) this.lastMsg.childMsgIdList = [];
-          this.lastMsg.childMsgIdList.push(msg.message_id);
+          this.lastMsg.childMsgIdList.push(id);
         }
       } else {
-        this.lastMsg = {
-          id: msg.message_id,
-          text,
-          ...config,
-        };
+        this.lastMsg = { id, text, ...config };
       }
     }
   }
@@ -248,7 +244,7 @@ export default class User extends BuildableClass {
       needConfigSkills: { value: 30 },
     };
   }
-  async startMsg({ msg } = {}) {
+  async startMsg() {
     await BOT.sendMessage(
       this.simpleMsgWrapper({
         text: `Приветствую Вас, ${this.telegram.username}!`,
@@ -475,6 +471,81 @@ export default class User extends BuildableClass {
       this.needConfigSkills.value = needConfigSkillsValue;
     }
     return true;
+  }
+  async giveReward({ msgId, chatId, rewardData, msgData }) {
+    this.setLastMsg({ id: msgId, text: msgData.text });
+    const buildObj = {
+      parent: this,
+      customMode: {
+        mode: "static",
+        skillList: msgData.skillList,
+        questionRate: msgData.questionRate,
+      },
+    };
+    const event =
+      msgData.type === "question"
+        ? await Question.build(buildObj)
+        : await Rate.build(buildObj);
+
+    await BOT.editMessageText(
+      event.createMsg({
+        reward: {
+          text: "<u>Обновлены оценки навыков:</u>",
+          data: rewardData,
+        },
+      })
+    );
+    await BOT.pinChatMessage({ chatId, msgId });
+    await this.newAlert({
+      text: "🏆 Получена награда",
+      replyId: msgId,
+      chatId,
+    });
+  }
+  async getAlertList() {
+    const query = {
+      text: `
+        SELECT
+            alert.id,
+            alert.data,
+            CASE
+                WHEN alert.data ->> 'source_type' = 'question' 
+                THEN (
+                    SELECT q.data FROM question q 
+                    WHERE CAST(alert.data ->> 'source_id' as bigint) = q.msg_id
+                ) 
+                ELSE (
+                    SELECT jsonb_set(a.data, '{question}', aq.data)
+                    FROM answer a 
+                        LEFT JOIN question aq ON a.question_id = aq.id
+                    WHERE CAST(alert.data ->> 'source_id' as bigint) = a.msg_id
+                )
+            END as source_data
+        FROM
+            user_alert alert
+        WHERE
+            user_id = $1
+      `,
+      values: [this.id],
+    };
+
+    const queryResult = await DB.query(query).catch((err) => {
+      throw new Error(err);
+    });
+    //console.log({ queryResult });
+    return queryResult.rows || [];
+  }
+
+  async newAlert({ text, replyId }) {
+    this.alertCount += 1;
+    await BOT.sendMessage(
+      this.simpleMsgWrapper({
+        text: text || "🔔 появились новые уведомления",
+        keyboard: this.startMenuMarkup(),
+        replyId,
+      })
+    );
+    this.resetCurrentAction();
   }
   // async newBroadcast() {
   //   // if (await this.lastMsgCheck()) {
