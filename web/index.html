@@ -1,213 +1,332 @@
 <html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <link
+      href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@mdi/font@6.6.96/css/materialdesignicons.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css"
+      rel="stylesheet"
+    />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui"
+    />
+  </head>
 
-<head>
-    <meta charset="utf-8">
-    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.6.96/css/materialdesignicons.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css?family=Material+Icons" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
-</head>
-
-<body>
+  <body>
     <div id="app">
-        <v-app>
-            <!-- <v-navigation-drawer app>
+      <v-app>
+        <!-- <v-navigation-drawer app>
             </v-navigation-drawer> -->
 
-            <v-app-bar app v-if="freeSkills !== null">
-                <v-row align="center">
-                    <v-col class="grow">
-                        Осталось: {{ freeSkills }}
-                    </v-col>
-                    <v-col class="shrink">
-                        <v-btn text :disabled="freeSkills > 0" color="light-blue accent-4"
-                            v-on:click="saveSkillList">
-                            Сохранить
-                        </v-btn>
-                    </v-col>
-                </v-row>
-            </v-app-bar>
+        <v-app-bar app v-if="freeSkills !== null">
+          <v-row align="center">
+            <v-col class="grow caption text-no-wrap">
+              Доступно очков: {{ freeSkills }}
+            </v-col>
+            <v-col class="shrink">
+              <v-btn
+                text
+                :disabled="freeSkills > 0"
+                color="light-blue accent-4"
+                v-on:click="saveSkillList"
+              >
+                Сохранить
+              </v-btn>
+            </v-col>
+          </v-row>
+        </v-app-bar>
 
-            <!-- Sizes your content based upon application components -->
-            <v-main>
+        <!-- Sizes your content based upon application components -->
+        <v-main>
+          <!-- Provides the application the proper gutter -->
+          <v-container v-if="isSkillListAction" fluid>
+            <v-banner v-if="saveSuccess" two-line class="caption">
+              <v-avatar slot="icon" color="light-green accent-4" size="40">
+                <v-icon color="white"> mdi-account-check </v-icon>
+              </v-avatar>
+              Распределение навыков успешно завершено. Вы можете вернуться в
+              основной чат и перейти к решению задач.
+            </v-banner>
 
-                <!-- Provides the application the proper gutter -->
-                <v-container v-if="isSkillListAction" fluid>
+            <v-banner v-if="freeSkills !== null" two-line class="caption">
+              <v-avatar slot="icon" color="light-blue accent-4" size="40">
+                <v-icon color="white"> mdi-account </v-icon>
+              </v-avatar>
+              <!-- {{ telegramUserName }}, вам нужно распределить навыки (осталось:
+              {{ freeSkills }}). -->
+              Вам нужно распределить навыки (<b
+                >доступно очков: {{ freeSkills }}</b
+              >)
+              <div>
+                <v-dialog transition="dialog-bottom-transition" max-width="600">
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-icon color="blue" v-bind="attrs" v-on="on">info</v-icon>
+                  </template>
+                  <template v-slot:default="dialog">
+                    <v-card>
+                      <v-toolbar color="primary" dark
+                        >Распределение навыков</v-toolbar
+                      >
+                      <v-card-text>
+                        <div class="pa-4">
+                          Распределите свободные очки навыков по тем сферам, в
+                          которых вы считаете себя наиболее компетентными. После
+                          этого нажмите "Сохранить".
+                        </div>
+                      </v-card-text>
+                      <v-card-actions class="justify-end">
+                        <v-btn text @click="dialog.value = false"
+                          >Закрыть</v-btn
+                        >
+                      </v-card-actions>
+                    </v-card>
+                  </template>
+                </v-dialog>
+                <i>Нажмите на эту иконку, чтобы получить подсказку</i>
+              </div>
+            </v-banner>
 
-                    <v-banner v-if="freeSkills !== null" two-line>
-                        <v-avatar slot="icon" color="light-blue accent-4" size="40">
-                            <v-icon color="white">
-                                info
-                            </v-icon>
-                        </v-avatar>
-                        {{ telegramUserName }}, вам нужно распределить навыки (осталось: {{ freeSkills }}).
-                    </v-banner>
-
-                    <v-data-table :headers="headers" :items="skillList" :items-per-page="5" class="elevation-1"
-                        :footer-props="{itemsPerPageOptions: [], itemsPerPageText:'На странице', itemsPerPageAllText: 'Все'}"
-                        :header-props="{sortByText: 'Отсортировать по'}">
-                        <!-- show-expand :single-expand="false" item-key="code" expand-icon="info" -->
-                        <!-- <template v-slot:expanded-item="{ headers, item }">
+            <v-data-table
+              :headers="headers"
+              :items="skillList"
+              :items-per-page="5"
+              class="elevation-1"
+              :footer-props="{itemsPerPageOptions: [], itemsPerPageText:'На странице', itemsPerPageAllText: 'Все'}"
+              :header-props="{sortByText: 'Отсортировать по'}"
+            >
+              <!-- show-expand :single-expand="false" item-key="code" expand-icon="info" -->
+              <!-- <template v-slot:expanded-item="{ headers, item }">
                             <td :colspan="headers.length">
                                 {{ lst.skills[item.code]?.info }}
                             </td>
                         </template> -->
-                        <template v-slot:footer.page-text="{ pageStart, pageStop, itemsLength }">
-                            {{pageStart}}-{{pageStop}} из {{itemsLength}}
-                        </template>
-                        <template v-slot:item.label="{ item }">
-                            {{ item.label }}
-                            <v-dialog transition="dialog-bottom-transition" max-width="600">
-                                <template v-slot:activator="{ on, attrs }">
-                                    <v-icon color="blue" v-bind="attrs" v-on="on">info</v-icon>
-                                </template>
-                                <template v-slot:default="dialog">
-                                    <v-card>
-                                        <v-toolbar color="primary" dark>{{ lst.skills[item.code].label }}</v-toolbar>
-                                        <v-card-text>
-                                            <div class="pa-4">{{ lst.skills[item.code].info }}</div>
-                                        </v-card-text>
-                                        <v-card-actions class="justify-end">
-                                            <v-btn text @click="dialog.value = false">Закрыть</v-btn>
-                                        </v-card-actions>
-                                    </v-card>
-                                </template>
-                            </v-dialog>
-                        </template>
-                        <template v-slot:item.value="{ item }">
-                            <v-icon v-if="item.update > 0" small color="green">mdi-arrow-up-bold</v-icon>
-                            <v-icon v-if="item.update < 0" small color="red">mdi-arrow-down-bold</v-icon>
-                            {{ item.value }}
-                            <span v-if="item.update > 0" class="font-weight-thin">
-                                (+{{ item.update }})
-                            </span>
-                            <span v-if="item.update < 0" class="font-weight-thin">
-                                ({{ item.update }})
-                            </span>
-                        </template>
-                        <template v-slot:item.action="{ item }">
-                            <v-icon color="red" v-if="item.value >= 5" v-on:click="itemClick(item, '-')">
-                                mdi-minus-box
-                            </v-icon>
-                            <v-icon color="grey" v-if="item.value < 5">
-                                mdi-minus-box
-                            </v-icon>
-                            <v-icon color="green" v-if="freeSkills > 0 && item.value < 30"
-                                v-on:click="itemClick(item, '+')">
-                                mdi-plus-box
-                            </v-icon>
-                            <v-icon color="grey" v-if="freeSkills == 0 || item.value >= 30">
-                                mdi-plus-box
-                            </v-icon>
-                        </template>
-                    </v-data-table>
-                </v-container>
-                <v-container v-if="isAlertListAction" fluid>
-
-                    <v-banner two-line>
-                        <v-avatar slot="icon" color="yellow darken-2" size="40">
-                            <v-icon color="white">
-                                mdi-bell
-                            </v-icon>
-                        </v-avatar>
-                        {{ telegramUserName }}, у вас есть новые уведомления.
-                    </v-banner>
-
-                    <v-row dense>
-                        <v-col
-                          v-for="alert in alertList"
-                          :key="alert.id"
-                          :cols="12"
+              <template
+                v-slot:footer.page-text="{ pageStart, pageStop, itemsLength }"
+              >
+                {{pageStart}}-{{pageStop}} из {{itemsLength}}
+              </template>
+              <template v-slot:item.label="{ item }">
+                {{ item.label }}
+                <v-dialog transition="dialog-bottom-transition" max-width="600">
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-icon color="blue" v-bind="attrs" v-on="on">info</v-icon>
+                  </template>
+                  <template v-slot:default="dialog">
+                    <v-card>
+                      <v-toolbar color="primary" dark
+                        >{{ lst.skills[item.code].label }}</v-toolbar
+                      >
+                      <v-card-text>
+                        <div class="pa-4">{{ lst.skills[item.code].info }}</div>
+                      </v-card-text>
+                      <v-card-actions class="justify-end">
+                        <v-btn text @click="dialog.value = false"
+                          >Закрыть</v-btn
                         >
-                            <v-card class="mx-auto mt-2" outlined elevation="4">
-                                <v-list-item>
-                                    <v-list-item-content v-if="alert.data.source_type === 'question'">
-                                        <div class="text-overline">
-                                            Награда за вопрос
-                                        </div>
-                                        <div>
-                                            <b>Вопрос:&#160;</b> <i>{{alert.source_data.text}}</i>
-                                        </div>
-                                        <div>
-                                            <b>Средняя оценка вопроса:&#160;</b>
-                                            <v-icon small color="blue">mdi-numeric-{{floatNum(alert.source_data.rateSum / alert.source_data.answerCount)}}-box</v-icon>
-                                        </div>
-                                        <div>
-                                            <b>Темы вопроса:&#160;</b>
-                                            <span v-for="skill in alert.source_data.usedSkillList" :key="skill.code">
-                                                <template v-if="skill.checked">
-                                                    <v-icon small color="green">mdi-check</v-icon>
-                                                    {{ skillLabel(skill.code) }}
-                                                </template>
-                                                <template v-if="!skill.checked">
-                                                    <v-icon small color="grey">mdi-cancel</v-icon>
-                                                    <s>{{ skillLabel(skill.code) }}</s>
-                                                </template>
-                                                &#160;
-                                            </span>
-                                        </div>
-                                    </v-list-item-content>
-                                    <v-list-item-content v-if="alert.data.source_type === 'answer'">
-                                        <div class="text-overline">
-                                            Награда за оценку вопроса
-                                        </div>
-                                        <div>
-                                            <b>Вопрос:&#160;</b> <i>{{alert.source_data.question.text}}</i>
-                                        </div>
-                                        <div>
-                                            <b>Ваша оценка вопроса:&#160;</b>
-                                            <v-icon small color="blue">mdi-numeric-{{alert.source_data.rate}}-box</v-icon>
-                                        </div>
-                                        <div>
-                                            <b>Темы вопроса:&#160;</b>
-                                            <span v-for="skill in alert.source_data.skills" :key="skill.code">
-                                                <template v-if="skill.rate === 'ratePlus'">
-                                                    <v-icon small color="green">mdi-check</v-icon>
-                                                    {{ skillLabel(skill.code) }}
-                                                </template>
-                                                <template v-if="skill.rate === 'rateMinus'">
-                                                    <v-icon small color="grey">mdi-cancel</v-icon>
-                                                    <s>{{ skillLabel(skill.code) }}</s>
-                                                </template>
-                                                &#160;
-                                            </span>
-                                        </div>
-                                    </v-list-item-content>
-                                </v-list-item>
+                      </v-card-actions>
+                    </v-card>
+                  </template>
+                </v-dialog>
+              </template>
+              <template v-slot:item.value="{ item }">
+                <v-icon v-if="item.update > 0" small color="green"
+                  >mdi-arrow-up-bold</v-icon
+                >
+                <v-icon v-if="item.update < 0" small color="red"
+                  >mdi-arrow-down-bold</v-icon
+                >
+                {{ item.value }}
+                <span v-if="item.update > 0" class="font-weight-thin">
+                  (+{{ item.update }})
+                </span>
+                <span v-if="item.update < 0" class="font-weight-thin">
+                  ({{ item.update }})
+                </span>
+              </template>
+              <template v-slot:item.action="{ item }">
+                <v-icon
+                  color="red"
+                  v-if="item.value >= 5"
+                  v-on:click="itemClick(item, '-')"
+                >
+                  mdi-minus-box
+                </v-icon>
+                <v-icon color="grey" v-if="item.value < 5">
+                  mdi-minus-box
+                </v-icon>
+                <v-icon
+                  color="green"
+                  v-if="freeSkills > 0 && item.value < 30"
+                  v-on:click="itemClick(item, '+')"
+                >
+                  mdi-plus-box
+                </v-icon>
+                <v-icon color="grey" v-if="freeSkills == 0 || item.value >= 30">
+                  mdi-plus-box
+                </v-icon>
+              </template>
+            </v-data-table>
+          </v-container>
+          <v-container v-if="isAlertListAction" fluid>
+            <v-banner two-line>
+              <v-avatar slot="icon" color="yellow darken-2" size="40">
+                <v-icon color="white"> mdi-bell </v-icon>
+              </v-avatar>
+              <!-- {{ telegramUserName }}, у вас есть новые уведомления. -->
+              У вас есть новые уведомления.
+            </v-banner>
+            <v-row dense>
+              <v-carousel>
+                <v-carousel-item v-for="(alert, i) in alertList" :key="i">
+                  <v-sheet height="100%">
+                    <v-row class="fill-height" align="center" justify="center">
+                      <v-card class="mx-auto mt-2" outlined elevation="4">
+                        <v-list-item>
+                          <v-list-item-content
+                            v-if="alert.data.source_type === 'question'"
+                          >
+                            <div class="text-overline">Награда за вопрос</div>
+                            <div>
+                              <span class="subtitle-2">Вопрос:&#160;</span>
+                              <span class="caption">
+                                {{alert.source_data.text}}
+                              </span>
+                            </div>
+                            <div>
+                              <span class="subtitle-2">
+                                Средняя оценка вопроса:&#160;
+                              </span>
+                              <v-icon small color="blue">
+                                mdi-numeric-{{floatNum((alert.source_data.rateSum||0)/
+                                alert.source_data.answerCount)}}-box
+                              </v-icon>
+                            </div>
+                            <div class="d-flex flex-wrap">
+                              <span class="subtitle-2">
+                                Темы вопроса:&#160;
+                              </span>
+                              <span
+                                v-for="skill in alert.source_data.usedSkillList"
+                                :key="skill.code"
+                                class="caption text-no-wrap"
+                              >
+                                <template v-if="skill.checked">
+                                  <v-icon small color="green">mdi-check</v-icon>
+                                  {{ skillLabel(skill.code) }}
+                                </template>
+                                <template v-if="!skill.checked">
+                                  <v-icon small color="grey">mdi-cancel</v-icon>
+                                  {{ skillLabel(skill.code) }}
+                                </template>
+                                &#160;
+                              </span>
+                            </div>
+                          </v-list-item-content>
+                          <v-list-item-content
+                            v-if="alert.data.source_type === 'answer'"
+                          >
+                            <div class="text-overline">
+                              Награда за оценку вопроса
+                            </div>
+                            <div>
+                              <span class="subtitle-2"> Вопрос:&#160; </span>
+                              <span class="caption">
+                                {{alert.source_data.question.text}}
+                              </span>
+                            </div>
+                            <div>
+                              <span class="subtitle-2">
+                                Ваша оценка вопроса:&#160;
+                              </span>
+                              <v-icon small color="blue"
+                                >mdi-numeric-{{alert.source_data.questionRate}}-box</v-icon
+                              >
+                            </div>
+                            <div class="d-flex flex-wrap">
+                              <span class="subtitle-2">
+                                Темы вопроса:&#160;
+                              </span>
+                              <span
+                                v-for="skill in alert.source_data.skillList"
+                                :key="skill.code"
+                                class="caption"
+                              >
+                                <template v-if="skill.checked">
+                                  <v-icon small color="green">mdi-check</v-icon>
+                                  {{ skillLabel(skill.code) }}
+                                </template>
+                                <template v-if="!skill.checked">
+                                  <v-icon small color="grey">mdi-cancel</v-icon>
+                                  {{ skillLabel(skill.code) }}
+                                </template>
+                                &#160;
+                              </span>
+                            </div>
+                          </v-list-item-content>
+                        </v-list-item>
 
-                                <v-divider class="mx-4"></v-divider>
-                                <v-list-item>
-                                    <v-list-item-content>
-                                        <div class="text-overline mb-4">
-                                            Изменения оценок навыков
-                                        </div>
-                                            <div v-if="skill.value != 0" v-for="skill in alert.skills" :key="skill.label">
-                                                <v-chip :class="[skill.value > 0 ? 'green' : 'red', 'white--text', 'font-weight-bold']">
-                                                    <v-icon v-if="skill.value > 0" small color="white">mdi-arrow-up-bold</v-icon>
-                                                    <v-icon v-if="skill.value < 0" small color="white">mdi-arrow-down-bold</v-icon>
-                                                    &#160;
-                                                    <span v-if="skill.value > 0">
-                                                        {{ skill.value }}
-                                                    </span>
-                                                    <span v-if="skill.value < 0">
-                                                        {{ sliceFirst(skill.value) }}
-                                                    </span>
-                                                </v-chip>
-                                                &#160;{{ skill.label }}
-                                            </div>
-                                    </v-list-item-content>
-                                </v-list-item>
-                                
-                            </v-card>
-                        </v-col>
+                        <v-divider class="mx-4"></v-divider>
+                        <v-list-item>
+                          <v-list-item-content>
+                            <div class="text-overline mb-4">
+                              Изменения навыков
+                            </div>
+                            <div
+                              v-if="skill.value != 0"
+                              v-for="skill in alert.skills"
+                              :key="skill.label"
+                              class="text-no-wrap text-truncate caption"
+                            >
+                              <v-chip
+                                :class="[skill.value > 0 ? 'green' : 'red', 'white--text', 'font-weight-bold']"
+                              >
+                                <v-icon
+                                  v-if="skill.value > 0"
+                                  small
+                                  color="white"
+                                  >mdi-arrow-up-bold</v-icon
+                                >
+                                <v-icon
+                                  v-if="skill.value < 0"
+                                  small
+                                  color="white"
+                                  >mdi-arrow-down-bold</v-icon
+                                >
+                                &#160;
+                                <span v-if="skill.value > 0">
+                                  {{ skill.value }}
+                                </span>
+                                <span v-if="skill.value < 0">
+                                  {{ sliceFirst(skill.value) }}
+                                </span>
+                              </v-chip>
+                              &#160;{{ skill.label }}
+                            </div>
+                          </v-list-item-content>
+                        </v-list-item>
+                      </v-card>
                     </v-row>
-                </v-container>
-            </v-main>
+                  </v-sheet>
+                </v-carousel-item>
+              </v-carousel>
+            </v-row>
+          </v-container>
+        </v-main>
 
-            <!-- <v-footer app>
+        <!-- <v-footer app>
             </v-footer> -->
-        </v-app>
+      </v-app>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script>
@@ -215,129 +334,155 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        const app = new Vue({
-            el: '#app',
-            vuetify: new Vuetify(),
-            data: {
-                userId: null,
-                action: null,
+      const app = new Vue({
+        el: "#app",
+        vuetify: new Vuetify(),
+        data: {
+          userId: null,
+          action: null,
 
-                lst: {
-                    skills: {},
-                },
-                skills: {},
-                freeSkills: null,
-                baseHeaders: [
-                    { text: 'Значение', value: 'value' },
-                    { text: 'Действия', value: 'action', sortable: false },
-                    {
-                        text: 'Навык',
-                        align: 'end',
-                        value: 'label',
-                    },
-                ],
-                
-                alerts: [],
+          lst: {
+            skills: {},
+          },
+          skills: {},
+          freeSkills: null,
+          saveSuccess: false,
+          baseHeaders: [
+            { text: "Значение", value: "value" },
+            { text: "Действия", value: "action", sortable: false },
+            {
+              text: "Навык",
+              align: "end",
+              value: "label",
             },
-            computed: {
-                telegramUserName(){
-                    return 'Уважаемый '+((window.Telegram.WebApp.initDataUnsafe.user||{}).username || 'гость');
-                },
-                isSkillListAction(){
-                    return this.action === 'skillList';
-                },
-                isAlertListAction(){
-                    return this.action === 'alertList';
-                },
-                lstSkills() {
-                    return this.lst.skills;
-                },
-                skillList() {
-                    return Object.entries(this.skills).map(
-                        ([code, skill]) => Object.assign({}, skill, { code, label: this.lst.skills[code] && this.lst.skills[code].label })
-                    );
-                },
-                headers() {
-                    return this.freeSkills !== null ? this.baseHeaders : this.baseHeaders.filter(item => item.value !== 'action');
-                },
+          ],
 
-                alertList(){
-                    const list = Object.values(this.alerts).map(
-                        (alert)=> Object.assign({}, alert, {
-                            skills: Object.entries(alert.data.reward).map(([code,value])=> ({label: this.lst.skills[code] && this.lst.skills[code].label, value}))
-                        })
-                    ).filter(alert => alert.skills.length);
-                    return list;
-                }
-            },
-            methods: {
-                skillLabel(code){
-                    return (this.lst.skills[code] && this.lst.skills[code].label) || '???';
-                },
-                sliceFirst(str){
-                    return str.toString().slice(1);
-                },
-                floatNum(num){
-                    return Math.floor(num);
-                },
-                itemClick(a, type) {
-                    if (type === '+') {
-                        console.log('this.skills[a.code]=', a.code, this.skills[a.code]);
-                        this.skills[a.code].value = parseFloat((parseFloat(this.skills[a.code].value) + 5).toFixed(1));
-                        this.skills[a.code].update = parseFloat((parseFloat(this.skills[a.code].update) + 5).toFixed(1));
-                        app.freeSkills -= 5;
-                    } else {
-                        this.skills[a.code].value = parseFloat((parseFloat(this.skills[a.code].value) - 5).toFixed(1));
-                        this.skills[a.code].update = parseFloat((parseFloat(this.skills[a.code].update) - 5).toFixed(1));
-                        app.freeSkills += 5;
-                    }
-                },
-                saveSkillList() {
-                    this.freeSkills = null;
-                    axios.post('/update_user/' + this.userId, this.skills)
-                        .then(function (response) {
-                        });
-                },
-            },
-            mounted: function () {
+          alerts: [],
+        },
+        computed: {
+          telegramUserName() {
+            return (
+              "Уважаемый " +
+              ((window.Telegram.WebApp.initDataUnsafe.user || {}).username ||
+                "гость")
+            );
+          },
+          isSkillListAction() {
+            return this.action === "skillList";
+          },
+          isAlertListAction() {
+            return this.action === "alertList";
+          },
+          lstSkills() {
+            return this.lst.skills;
+          },
+          skillList() {
+            return Object.entries(this.skills).map(([code, skill]) =>
+              Object.assign({}, skill, {
+                code,
+                label: this.lst.skills[code] && this.lst.skills[code].label,
+              })
+            );
+          },
+          headers() {
+            return this.freeSkills !== null
+              ? this.baseHeaders
+              : this.baseHeaders.filter((item) => item.value !== "action");
+          },
 
-                const cookieList = document.cookie
-                    .split(';')
-                    .reduce((res, c) => {
-                        const [key, val] = c.trim().split('=').map(decodeURIComponent)
-                        try {
-                            return Object.assign(res, { [key]: JSON.parse(val) })
-                        } catch (e) {
-                            return Object.assign(res, { [key]: val })
-                        }
-                    }, {});
-                this.action = cookieList.action;
-                this.userId = cookieList.user_id;
-
-                axios.get('/lst/skills')
-                    .then((response) => {
-                        this.lst.skills = response.data;
-                    });
-                
-                if(this.isSkillListAction){
-                    axios.get('/user/' + this.userId + '/info')
-                        .then((response) => {
-                            this.skills = response.data.skillList;
-                            if (response.data.needConfigSkills.value) {
-                                this.freeSkills = response.data.needConfigSkills.value;
-                            }
-                        });
-                }
-                if(this.isAlertListAction){
-                    axios.get('/user/' + this.userId + '/alert')
-                        .then((response) => {
-                            console.log({response});
-                            this.alerts = [].concat(response.data);
-                        });
-                }
+          alertList() {
+            console.log("this.alerts=", this.alerts);
+            const list = Object.values(this.alerts)
+              .map((alert) =>
+                Object.assign({}, alert, {
+                  skills: Object.entries(alert.data.reward).map(
+                    ([code, value]) => ({
+                      label:
+                        this.lst.skills[code] && this.lst.skills[code].label,
+                      value,
+                    })
+                  ),
+                })
+              )
+              .filter((alert) => alert.skills.length);
+            console.log({ list });
+            return list;
+          },
+        },
+        methods: {
+          skillLabel(code) {
+            return (
+              (this.lst.skills[code] && this.lst.skills[code].label) || "???"
+            );
+          },
+          sliceFirst(str) {
+            return str.toString().slice(1);
+          },
+          floatNum(num) {
+            return Math.floor(num);
+          },
+          itemClick(a, type) {
+            if (type === "+") {
+              console.log("this.skills[a.code]=", a.code, this.skills[a.code]);
+              this.skills[a.code].value = parseFloat(
+                (parseFloat(this.skills[a.code].value) + 5).toFixed(1)
+              );
+              this.skills[a.code].update = parseFloat(
+                (parseFloat(this.skills[a.code].update) + 5).toFixed(1)
+              );
+              app.freeSkills -= 5;
+            } else {
+              this.skills[a.code].value = parseFloat(
+                (parseFloat(this.skills[a.code].value) - 5).toFixed(1)
+              );
+              this.skills[a.code].update = parseFloat(
+                (parseFloat(this.skills[a.code].update) - 5).toFixed(1)
+              );
+              app.freeSkills += 5;
             }
-        });
-    </script>
-</body>
+          },
+          saveSkillList() {
+            this.freeSkills = null;
+            axios
+              .post("/update_user/" + this.userId, this.skills)
+              .then((response) => {
+                this.saveSuccess = true;
+                window.scrollTo(0,0);
+              });
+          },
+        },
+        mounted: function () {
+          const cookieList = document.cookie.split(";").reduce((res, c) => {
+            const [key, val] = c.trim().split("=").map(decodeURIComponent);
+            try {
+              return Object.assign(res, { [key]: JSON.parse(val) });
+            } catch (e) {
+              return Object.assign(res, { [key]: val });
+            }
+          }, {});
+          this.action = cookieList.action;
+          this.userId = cookieList.user_id;
 
+          axios.get("/lst/skills").then((response) => {
+            this.lst.skills = response.data;
+          });
+
+          if (this.isSkillListAction) {
+            axios.get("/user/" + this.userId + "/info").then((response) => {
+              this.skills = response.data.skillList;
+              if (response.data.needConfigSkills.value) {
+                this.freeSkills = response.data.needConfigSkills.value;
+              }
+            });
+          }
+          if (this.isAlertListAction) {
+            axios.get("/user/" + this.userId + "/alert").then((response) => {
+              console.log({ response });
+              this.alerts = [].concat(response.data);
+            });
+          }
+        },
+      });
+    </script>
+  </body>
 </html>

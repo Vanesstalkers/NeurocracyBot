@@ -62,9 +62,16 @@ export default class TelegramBot extends BuildableClass {
   errorHandler({ userId, chatId, method }) {
     return async (err) => {
       console.error(`!!! TelegramAPI ${method} error`);
-      if (err.message !== "ETELEGRAM: 400 Bad Request: chat not found") {
-        const user = await LOBBY.getUser({ userId, chatId });
-        await user.sendSystemErrorMsg({ err });
+      switch (err.message) {
+        case "ETELEGRAM: 400 Bad Request: chat not found":
+          break;
+        case "ETELEGRAM: 403 Forbidden: bot was blocked by the user":
+          console.log({ userId, chatId });
+          break;
+        default:
+          const user = await LOBBY.getUser({ userId, chatId });
+          await user.sendSystemErrorMsg({ err });
+          break;
       }
       new errorCatcher(err, true);
       return false;

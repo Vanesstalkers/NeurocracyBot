@@ -384,12 +384,13 @@ export default class Rate extends Event {
         await user.sendSimpleError({ error });
       }
     } else {
-      await DB.query({
+      const answerMsg = await DB.query({
         text: `
           INSERT INTO answer
               (user_id, question_id, data, add_time, msg_id, chat_id)
           VALUES
-              ($1, $2, $3, NOW()::timestamp, $4, $5);
+              ($1, $2, $3, NOW()::timestamp, $4, $5)
+          RETURNING id;
         `,
         values: [
           user.id,
@@ -402,13 +403,13 @@ export default class Rate extends Event {
         await user.sendSystemErrorMsg({ err });
         throw new Error(err);
       });
+      const answerId = answerMsg.rows[0].id;
 
       const queryResult = await DB.query({
         text: `
           UPDATE question 
           SET data = data || jsonb_build_object(
-              'answerCount', (COALESCE(data->>'answerCount','0')::int + 1)::text::jsonb,
-              'rateCount', (COALESCE(data->>'rateCount','0')::int + 1)::text::jsonb
+              'answerCount', (COALESCE(data->>'answerCount','0')::int + 1)::text::jsonb
           )
           WHERE id = $1 RETURNING data->>'answerCount' count;
         `,
@@ -421,10 +422,11 @@ export default class Rate extends Event {
       await user.sendSimpleAnswer({ text: "Оценки сохранены." });
       user.resetCurrentAction();
 
-      const answerCount = parseInt(queryResult.rows[0]?.count);
-      if (answerCount > 0) {
-        await Question.processRates({ questionId: this.questionId });
-      }
+      await Question.processRates({
+        questionId: this.questionId,
+        answerId,
+        processUserId: user.id,
+      });
     }
   }
 }

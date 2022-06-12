@@ -10,7 +10,7 @@ import { numberToEmoji } from "./utils.js";
 
 export default class User extends BuildableClass {
   id;
-  config = { showSkillsInApp: false };
+  config = { showSkillsInApp: true };
   #textHandlerList = {};
   #menuReady = false;
   constructor(userData = {}) {
@@ -215,7 +215,8 @@ export default class User extends BuildableClass {
               }
         ),
         this.menuItem({
-          text: this.alertCount > 0 ? `🔔 (${this.alertCount})` : "🔕",
+          //text: this.alertCount > 0 ? `🔔 (${this.alertCount})` : "🔕",
+          text: '🔔',
           web_app: {
             url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=alertList`,
           },
@@ -235,7 +236,7 @@ export default class User extends BuildableClass {
     const skillList = {};
     for (const skillCode of Object.keys(skillLST)) {
       skillList[skillCode] = {
-        value: parseFloat((Math.random() * 10).toFixed(1)),
+        value: 0, //parseFloat((Math.random() * 10).toFixed(1)),
         update: 0,
       };
     }
@@ -247,7 +248,8 @@ export default class User extends BuildableClass {
   async startMsg() {
     await BOT.sendMessage(
       this.simpleMsgWrapper({
-        text: `Приветствую Вас, ${this.telegram.username}!`,
+        //text: `Приветствую вас, ${this.telegram.username}!`,
+        text: `Приветствую вас!`,
         keyboard: this.startMenuMarkup(),
       })
     );
@@ -256,7 +258,7 @@ export default class User extends BuildableClass {
   }
   createStartHelpMsg({ msgId, info = null } = {}) {
     let text =
-      "Что еще вы хотели бы узнать, прежде чем начать оценку собственных компетенций? <u>Cейчас и далее, когда понадобится подсказка, выбирайте пункты со значком</u> ℹ️";
+      "Что еще вы хотели бы узнать, прежде чем начать оценку собственных компетенций?\n<u>Cейчас и далее, когда понадобится подсказка, выбирайте пункты со значком</u> ℹ️";
     if (info) text += "\n\n" + info;
 
     const inlineKeyboard = Object.entries(helpQuestionLST).map(
@@ -298,7 +300,7 @@ export default class User extends BuildableClass {
       );
     } else {
       await this.sendSimpleAnswer({
-        text: "Выберите одно из двух действий, которые можно совершить на нашей платформе.",
+        text: "Выберите одно из двух действий, которые можно совершить.",
       });
     }
   }
@@ -329,11 +331,11 @@ export default class User extends BuildableClass {
     const inlineKeyboard = [];
     if (btnQ)
       inlineKeyboard.push([
-        { text: "Задать новый вопрос", ...toCBD("newQuestionEvent") },
+        { text: "🏆 Задать новый вопрос", ...toCBD("newQuestionEvent") },
       ]);
     if (btnA)
       inlineKeyboard.push([
-        { text: "Оценить чужой вопрос", ...toCBD("newRateEvent") },
+        { text: "🏆 Оценить чужой вопрос", ...toCBD("newRateEvent") },
       ]);
     await BOT.sendMessage(
       this.simpleMsgWrapper({
@@ -512,16 +514,16 @@ export default class User extends BuildableClass {
                 WHEN alert.data ->> 'source_type' = 'question' 
                 THEN (
                     SELECT q.data FROM question q 
-                    WHERE CAST(alert.data ->> 'source_id' as bigint) = q.msg_id
+                    WHERE q.user_id = $1 AND CAST(alert.data ->> 'source_id' as bigint) = q.msg_id
                 ) 
                 ELSE (
                     SELECT jsonb_set(a.data, '{question}', aq.data)
                     FROM answer a 
                         LEFT JOIN question aq ON a.question_id = aq.id
-                    WHERE CAST(alert.data ->> 'source_id' as bigint) = a.msg_id
+                    WHERE a.user_id = $1 AND CAST(alert.data ->> 'source_id' as bigint) = a.msg_id
                 )
             END as source_data
-        FROM
+        FROM    
             user_alert alert
         WHERE
             user_id = $1

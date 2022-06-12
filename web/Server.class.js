@@ -47,6 +47,9 @@ export default class WebServer extends BuildableClass {
             res.json({ status: "err", msg: err.message });
           })
       ) {
+        await user.sendSimpleAnswer({
+          text: "Вы отлично справились. Теперь можно приступить к задачам. Какую хотите выбрать?",
+        });
         res.json({ status: "ok" });
       }
     });

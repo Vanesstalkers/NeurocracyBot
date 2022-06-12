@@ -28,19 +28,17 @@ export default class Question extends Event {
     }
 
     this.skillList = [];
-    if (!skillList) {
-      const skillList = Object.keys(skillLST);
-      for (let j = 0; j < 4; j++) {
-        const skillCode = skillList.splice(
-          Math.floor(Math.random() * skillList.length),
-          1
-        )[0];
-        this.skillList.push({
-          code: skillCode,
-          label: skillLST[skillCode].label,
-          checked: false,
-        });
-      }
+    const skillListKeys = Object.keys(skillLST);
+    for (let j = 0; j < 4; j++) {
+      const skillCode = skillListKeys.splice(
+        Math.floor(Math.random() * skillListKeys.length),
+        1
+      )[0];
+      this.skillList.push({
+        code: skillCode,
+        label: skillLST[skillCode].label,
+        checked: false,
+      });
     }
     await BOT.sendMessage(this.createMsg(), true);
   }
@@ -206,26 +204,30 @@ export default class Question extends Event {
     await BOT.editMessageText(this.createMsg());
   }
 
-  static async processRates({ questionId } = {}) {
+  static async processRates({ questionId, answerId, processUserId } = {}) {
     const queryResult = await DB.query({
       text: `
         (
             SELECT
-                'question' as type, q.data, u.id user_id, u.data user_data, q.msg_id, q.chat_id
+                'question' as type, q.data, u.id user_id, u.data user_data, ua.data->'reward' alert_data, q.msg_id, q.chat_id
             FROM
                 question q
-                LEFT JOIN users u 
-                        ON u.id = q.user_id
+                LEFT JOIN users u
+                  ON u.id = q.user_id
+                  LEFT JOIN user_alert ua
+                    ON ua.user_id = u.id AND CAST(ua.data ->> 'source_id' as bigint) = q.msg_id AND ua.data ->> 'source_type' = 'question'
             WHERE q.id = $1
         ) UNION ALL (
             SELECT
-            'answer' as type, a.data, u.id user_id, u.data user_data, a.msg_id, a.chat_id
+            'answer' as type, a.data, u.id user_id, u.data user_data, ua.data->'reward' alert_data, a.msg_id, a.chat_id
             FROM
                 question q
                 LEFT JOIN answer a
-                        ON a.question_id = q.id AND a.delete_time IS NULL
+                  ON a.question_id = q.id AND a.delete_time IS NULL
                 LEFT JOIN users u
-                        ON u.id = a.user_id
+                  ON u.id = a.user_id
+                  LEFT JOIN user_alert ua
+                    ON ua.user_id = u.id AND CAST(ua.data ->> 'source_id' as bigint) = a.msg_id AND ua.data ->> 'source_type' = 'answer'
             WHERE q.id = $1
         )
       `,
@@ -241,7 +243,9 @@ export default class Question extends Event {
     for (const item of queryResult.rows) {
       if (!userMap[item.user_id]) {
         userMap[item.user_id] = {
+          update: {},
           reward: {},
+          alertData: item.alert_data || {},
           skillList: item.user_data.skillList,
         };
       }
@@ -251,11 +255,19 @@ export default class Question extends Event {
           msgId: item.msg_id,
           chatId: item.chat_id,
           skillList: item.data.skillList || [],
-          text: item.data.text,
           questionRate: item.data.questionRate,
+          text: item.data.text,
+          answerCount: item.data.answerCount,
+          checkStatus: item.data.checkStatus || null,
         };
       }
-      if (item.type === "question") question = itemsMappedByUser[item.user_id];
+      if (item.type === "question") {
+        question = itemsMappedByUser[item.user_id];
+        if (question.answerCount >= 3 && question.checkStatus === null)
+          question.needCheck = "first";
+        else if (question.answerCount >= 10 && question.checkStatus === "first")
+          question.needCheck = "second";
+      }
     }
     if (!question)
       throw new Error(`question (questionId=${questionId}) not found`);
@@ -312,6 +324,9 @@ export default class Question extends Event {
             0.0001;
         }
 
+        userMap[user.userId].update[skillCode] =
+          parseFloat(updateSkill.toFixed(1)) -
+          parseFloat(userMap[user.userId].alertData[skillCode] || 0);
         userMap[user.userId].reward[skillCode] = parseFloat(
           updateSkill.toFixed(1)
         );
@@ -322,16 +337,20 @@ export default class Question extends Event {
       text: "",
     };
     for (const [userId, userData] of Object.entries(userMap)) {
+      if (userId !== processUserId && !question.needCheck) continue;
+
       const lobbyUser = await LOBBY.getUser({ userId, chatId: userId });
       if (lobbyUser) {
         let updateSkillQuery = [];
-        for (const [code, value] of Object.entries(userData.reward)) {
+        for (const [code, value] of Object.entries(userData.update)) {
           if (!lobbyUser.skillList[code])
             lobbyUser.skillList[code] = { value: 0.0, update: 0.0 };
-          lobbyUser.skillList[code].value =
-            parseFloat(lobbyUser.skillList[code].value) + value;
-          lobbyUser.skillList[code].update =
-            parseFloat(lobbyUser.skillList[code].update) + value;
+          lobbyUser.skillList[code].value = (
+            parseFloat(lobbyUser.skillList[code].value) + value
+          ).toFixed(1);
+          lobbyUser.skillList[code].update = (
+            parseFloat(lobbyUser.skillList[code].update) + value
+          ).toFixed(1);
 
           updateSkillQuery.push(`
             '${code}', COALESCE(data->'skillList'->'${code}', jsonb '{}') ||
