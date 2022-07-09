@@ -3,12 +3,23 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test-e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles",
+    "test": "jest"
+  },
+  "jest": {
+    "transform_": {
+      "\\.(js)$": "<rootDir>/test/fileTransformer.js"
+    }
   },
   "dependencies": {
     "express": "^4.18.1",
     "node-telegram-bot-api": "^0.56.0",
     "nodemon": "^2.0.16",
     "pg": "^8.7.3"
+  },
+  "devDependencies": {
+    "jest": "^28.1.2",
+    "typescript": "^4.7.4"
   }
 }

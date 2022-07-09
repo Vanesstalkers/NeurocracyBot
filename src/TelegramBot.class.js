@@ -1,5 +1,78 @@
+import vm from "vm";
+import * as errors from "../node_modules/node-telegram-bot-api/src/errors.js";
+import * as debug from "debug";
+import * as request from "request-promise";
+const testLibs = { errors, debug, request };
+
 import { BuildableClass } from "./Base.class.js";
-import TelegramApi from "node-telegram-bot-api";
+import _TelegramApi from "node-telegram-bot-api";
+const TelegramApi = global.test
+  ? new Proxy(_TelegramApi, {
+      construct(target, args) {
+        return new Proxy(new target(...args), {
+          get(target, name) {
+            switch (name) {
+              case "startPolling":
+                return () => {};
+              // case 'setMyCommands': return async ()=>true;
+              case "_request":
+                return async function (...arg) {
+                  const contextObject = {
+                    target,
+                    arg,
+                    result: undefined,
+                    request: async () => ({
+                      body: JSON.stringify({
+                        ok: false,
+                        result: false,
+                        error_code: 666,
+                        description: "Мы все умрем",
+                      }),
+                    }),
+                  };
+                  const contextifiedObject = vm.createContext(contextObject);
+                  const module = new vm.SourceTextModule(
+                    `
+                import errors from 'errors';
+                import debugLib from 'debug';
+                const debug = debugLib('node-telegram-bot-api');
+                //import request from 'request';
+                result = (function ${target._request.toString()}).call(target, ...arg)
+              `,
+                    { context: contextifiedObject }
+                  );
+                  await module.link(async function linker(
+                    specifier,
+                    referencingModule
+                  ) {
+                    return new vm.SourceTextModule(
+                      Object.keys(testLibs[specifier])
+                        .map(
+                          (x) =>
+                            `export ${
+                              x !== "default" ? `const ${x} = ` : `${x}`
+                            } import.meta.mod.${x};`
+                        )
+                        .join("\n"),
+                      {
+                        context: contextifiedObject,
+                        initializeImportMeta(meta) {
+                          meta.mod = testLibs[specifier];
+                        },
+                      }
+                    );
+                  });
+                  await module.evaluate();
+                  return contextObject.result;
+                };
+              default:
+                return target[name];
+            }
+          },
+        });
+      },
+    })
+  : _TelegramApi;
 import EventEmitter from "events";
 
 export default class TelegramBot extends BuildableClass {
