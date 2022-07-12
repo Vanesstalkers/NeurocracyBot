@@ -23,10 +23,10 @@ const TelegramApi = global.test
                     result: undefined,
                     request: async () => ({
                       body: JSON.stringify({
-                        ok: false,
-                        result: false,
-                        error_code: 666,
-                        description: "Мы все умрем",
+                        ok: true,
+                        result: true,
+                        // error_code: 666,
+                        // description: "Мы все умрем",
                       }),
                     }),
                   };

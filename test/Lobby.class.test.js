@@ -5,7 +5,9 @@ import telegramBot from "../src/TelegramBot.class.js";
 
 globalThis.CONFIG = config;
 
+console.log({imports: telegramBot.imports});
+
 jest.setTimeout(60000);
 test('build', async () => {
-    await telegramBot.build();
+    console.log( await telegramBot.build() );
 });
