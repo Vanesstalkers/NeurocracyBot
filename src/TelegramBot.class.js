@@ -16,12 +16,16 @@ export default class TelegramBot extends BuildableClass {
       this.setHandler({ handler, action: action.bind(this) });
     }
   }
-  static async build({ commandList, adminCommandList, handlerList } = {}) {
+  static async build({
+    commandList = {},
+    adminCommandList = {},
+    handlerList = {},
+  } = {}) {
     const api = new TelegramApi(CONFIG.telegram.token, {
       polling: false,
     });
     api.startPolling();
-    await api
+    const setMyCommandsResult = await api
       .setMyCommands(
         Object.entries(commandList).map(([command, info]) => {
           return { command, description: info.description };
@@ -31,6 +35,7 @@ export default class TelegramBot extends BuildableClass {
         console.error("!!! TelegramAPI setMyCommands error");
         throw err?.message;
       });
+    console.log({ setMyCommandsResult });
     handlerList.error = async function (err) {
       console.log("!!! TelegramApi error :: ", err?.message);
     };

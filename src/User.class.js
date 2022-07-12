@@ -505,6 +505,7 @@ export default class User extends BuildableClass {
     });
   }
   async getAlertList() {
+    // !!! по хорошему в sub-query нужно проверять еще и chat_id
     const query = {
       text: `
         SELECT
