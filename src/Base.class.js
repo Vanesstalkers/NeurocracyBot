@@ -1,32 +1,25 @@
 export default {};
+/**
+ * @typedef constructData
+ * @property {?BuildableClass} parent - jsdoc parent.
+ * @property {boolean} createdFromBuilder - jsdoc createdFromBuilder.
+ */
 
+/**
+ * Базовый класс, элементы которого создаются через метод build()
+ */
 export class BuildableClass {
-  constructor(data = {}) {
+  /** @type {?BuildableClass} */
+  #parent = null;
+  /** @param {constructData} data */
+  constructor(data = { createdFromBuilder: false, parent: null }) {
+    const { parent } = data;
+    this.#parent = parent;
     if (!data.createdFromBuilder)
       throw new Error("Creation of this class is allowed ONLY with builder.");
   }
-}
-
-export class Event extends BuildableClass {
-  #parent = null;
-  #errorIdx = 0;
-  constructor({ parent }) {
-    super(...arguments);
-    this.#parent = parent;
-  }
-  static async build() {
-    return new Event();
-  }
   getParent() {
     return this.#parent;
-  }
-  stringifyError({ error }) {
-    // избавляет от ошибки "message is not modified" + визуализирует для полльзователя, что ошибка осталась
-    return (
-      (this.#errorIdx++ % 2 > 0 ? "❗❗❗" : "‼️‼️‼️") +
-      " <b>Ошибка</b>: " +
-      error
-    );
   }
 }
 

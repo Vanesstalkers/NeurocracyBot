@@ -1,3 +1,7 @@
+/**
+ * @typedef {import('./Base.class.js').constructData} constructData
+ */
+
 import { BuildableClass } from "./Base.class.js";
 //import Broadcast from "./userEvents/broadcast.js";
 import Table from "./userEvents/table.js";
@@ -8,13 +12,22 @@ import skillLST from "./lst/skill.js";
 import helpQuestionLST from "./lst/helpQuestion.js";
 import { numberToEmoji } from "./utils.js";
 
-export default class User extends BuildableClass {
+/**
+ * Пользователь
+ * @extends BuildableClass
+ */
+class User extends BuildableClass {
+  /** @type {number} */
   id;
+  /** @type {{showSkillsInApp: boolean}} */
   config = { showSkillsInApp: true };
   #textHandlerList = {};
   #menuReady = false;
-  constructor(userData = {}) {
-    super(...arguments);
+  /**
+   * @param {constructData} userData
+   */
+  constructor(userData) {
+    super(userData);
     this.id = userData.id;
     this.telegram = userData.telegram;
     this.alertCount = parseInt(userData.data.alert_count || "0");
@@ -216,7 +229,7 @@ export default class User extends BuildableClass {
         ),
         this.menuItem({
           //text: this.alertCount > 0 ? `🔔 (${this.alertCount})` : "🔕",
-          text: '🔔',
+          text: "🔔",
           web_app: {
             url: `${CONFIG.webapp.url}/?user_id=${this.id}&action=alertList`,
           },
@@ -558,3 +571,4 @@ export default class User extends BuildableClass {
   //   // }
   // }
 }
+export default User;

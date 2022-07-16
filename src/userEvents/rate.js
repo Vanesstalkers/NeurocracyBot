@@ -1,17 +1,36 @@
-import { Event } from "../Base.class.js";
+/**
+ * @typedef {import('../Base.class.js').constructData} constructData
+ * @typedef {import('../Event.class.js').eventBuildData} eventBuildData
+ * @typedef {import('../Event.class.js').customMode} customMode
+ */
+
+import Event from "../Event.class.js";
 import { toCBD } from "../Lobby.class.js";
 import Question from "./question.js";
 import skillLST from "../lst/skill.js";
 import rateLST from "../lst/rate.js";
 import { getRewardArray } from "../utils.js";
 
-export default class Rate extends Event {
+/**
+ * Событие пользователя "оценить задачу"
+ * @extends Event
+ */
+class Rate extends Event {
+  /** @static @type {number} */
   static claimCountLimit = 3;
+  /** @type {?number} */
+  questionId = null;
+  /** @type {{stepByStepMode: boolean}} */
   config = { stepByStepMode: true };
-  constructor() {
-    super(...arguments);
+
+  /** @param {constructData} data */
+  constructor(data) { // !!! проверить что генерится в jsdoc
+    super(data);
   }
-  static async build({ parent: user, customMode } = {}) {
+  /**
+   * @param {eventBuildData} data
+   */
+  static async build({ parent: user, customMode }) {
     const rate = new Rate({ parent: user, createdFromBuilder: true });
     await rate.init({ customMode });
     return rate;
@@ -23,7 +42,13 @@ export default class Rate extends Event {
       })
     );
   }
-  async init({ customMode: { mode, skillList = [], questionRate } = {} } = {}) {
+  /**
+   * @param {object} data
+   * @param {customMode} [data.customMode]
+   */
+  async init({
+    customMode: { mode, skillList, questionRate } = { skillList: [] },
+  }) {
     if (mode === "static") {
       this.skillList = skillList;
       this.questionRate = questionRate;
@@ -322,6 +347,7 @@ export default class Rate extends Event {
       `,
       [this.questionId]
     );
+    /** @type {number} */
     const claimCount = question.rows[0]?.count || 0;
 
     if (claimCount < Rate.claimCountLimit) {
@@ -430,3 +456,4 @@ export default class Rate extends Event {
     }
   }
 }
+export default Rate;

@@ -1,31 +1,53 @@
+/**
+ * @typedef {import('./Base.class.js').constructData} constructData
+ */
+/**
+ * @typedef telegramBotBuildData
+ * @property {object} commandList - jsdoc commandList
+ * @property {object} adminCommandList - jsdoc adminCommandList
+ * @property {handlerList} handlerList - jsdoc handlerList
+ */
+/**
+ * @typedef handlerList
+ * @property {function} [error] - jsdoc handlerList error
+ * @property {function} [webhook_error] - jsdoc handlerList error
+ * @property {function} [polling_error] - jsdoc handlerList error
+ */
+
 import { BuildableClass } from "./Base.class.js";
 import TelegramApi from "node-telegram-bot-api";
 import EventEmitter from "events";
 
-export default class TelegramBot extends BuildableClass {
+/**
+ * Бот
+ * @extends BuildableClass
+ */
+class TelegramBot extends BuildableClass {
+  /** @type {TelegramApi} */
   #api;
-  #testApi;
+  // #testApi;
   #message_id = 0;
-  constructor({ api, commandList, adminCommandList, handlerList } = {}) {
-    super(...arguments);
-    this.#api = api;
-    this.#testApi = new EventEmitter();
-    this.commandList = commandList;
-    this.adminCommandList = adminCommandList;
-    for (const [handler, action] of Object.entries(handlerList)) {
-      this.setHandler({ handler, action: action.bind(this) });
-    }
-  }
-  static async build({
-    commandList = {},
-    adminCommandList = {},
-    handlerList = {},
-  } = {}) {
-    const api = new TelegramApi(CONFIG.telegram.token, {
+  /** @param {constructData} data */
+  constructor(data) {
+    super(data);
+    this.#api = new TelegramApi(CONFIG.telegram.token, {
       polling: false,
     });
-    api.startPolling();
-    const setMyCommandsResult = await api
+  }
+  /**
+   * Асинхронный конструктор класса
+   * @param {telegramBotBuildData} data
+   */
+  static async build(
+    { commandList, adminCommandList, handlerList } = {
+      commandList: {},
+      adminCommandList: {},
+      handlerList: {},
+    }
+  ) {
+    const bot = new TelegramBot({ parent: null, createdFromBuilder: true });
+    bot.#api.startPolling();
+    await bot.#api
       .setMyCommands(
         Object.entries(commandList).map(([command, info]) => {
           return { command, description: info.description };
@@ -35,33 +57,34 @@ export default class TelegramBot extends BuildableClass {
         console.error("!!! TelegramAPI setMyCommands error");
         throw err?.message;
       });
-    console.log({ setMyCommandsResult });
-    handlerList.error = async function (err) {
+    handlerList.error = async function (/** @type {Error} */ err) {
       console.log("!!! TelegramApi error :: ", err?.message);
     };
-    handlerList.webhook_error = async function (err) {
+    handlerList.webhook_error = async function (/** @type {Error} */ err) {
       console.log("!!! TelegramApi webhook_error :: ", err?.message);
     };
-    handlerList.polling_error = async function (err) {
+    handlerList.polling_error = async function (/** @type {Error} */ err) {
       console.log("!!! TelegramApi polling_error :: ", err?.message);
     };
-    return new TelegramBot({
-      api,
-      commandList,
-      adminCommandList,
-      handlerList,
-      createdFromBuilder: true,
-    });
+    //bot.#api = api;
+    // bot.#testApi = new EventEmitter();
+    bot.commandList = commandList;
+    bot.adminCommandList = adminCommandList;
+    for (const [handler, action] of Object.entries(handlerList)) {
+      bot.setHandler({ handler, action: action.bind(bot) });
+    }
+
+    return bot;
   }
   setHandler({ handler, action } = {}) {
     this.#api.on(handler, action);
-    this.#testApi.on(handler, action);
+    // this.#testApi.on(handler, action);
   }
   async toggleHandler({ handler, msg } = {}) {
     return new Promise((resolve, reject) => {
       msg.message_id = this.#message_id++;
       console.log("handler", { message_id: msg.message_id });
-      this.#testApi.emit(handler, msg, resolve);
+      //this.#testApi.emit(handler, msg, resolve);
     });
   }
   errorHandler({ userId, chatId, method }) {
@@ -213,3 +236,4 @@ export default class TelegramBot extends BuildableClass {
     }
   }
 }
+export default TelegramBot;
